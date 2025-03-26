@@ -1,0 +1,2 @@
+C:\Users\bitstream\Desktop\tv\windows\c++\TVServer\x64\Debug\TVServer.exe
+C:\Users\bitstream\Desktop\tv\windows\c++\TVServer\x64\Debug\TVServer.pdb

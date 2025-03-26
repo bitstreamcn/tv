@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="280dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/dialog_background"
+    android:padding="16dp"
+    android:layout_gravity="center">
+
+    <TextView
+        android:id="@+id/openOption"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:text="打开"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:background="@drawable/menu_item_background"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:layout_marginBottom="8dp"
+        android:nextFocusUp="@id/encodeOption"
+        android:nextFocusDown="@id/encodeOption"/>
+
+    <TextView
+        android:id="@+id/encodeOption"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:text="转码"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:background="@drawable/menu_item_background"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:nextFocusUp="@id/openOption"
+        android:nextFocusDown="@id/openOption"/>
+
+</LinearLayout> 

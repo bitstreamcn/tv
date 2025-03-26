@@ -1,0 +1,22 @@
+﻿LINK : error LNK2001: 无法解析的外部符号 swscale.lib
+LINK : error LNK2001: 无法解析的外部符号 swresample.lib
+LINK : error LNK2001: 无法解析的外部符号 postproc.lib
+LINK : error LNK2001: 无法解析的外部符号 avutil.lib
+LINK : error LNK2001: 无法解析的外部符号 avformat.lib
+LINK : error LNK2001: 无法解析的外部符号 avfilter.lib
+LINK : error LNK2001: 无法解析的外部符号 avdevice.lib
+LINK : error LNK2001: 无法解析的外部符号 avcodec.lib
+TVServer.obj : error LNK2019: 无法解析的外部符号 "void __cdecl av_packet_unref(struct AVPacket *)" (?av_packet_unref@@YAXPAUAVPacket@@@Z)，函数 _main 中引用了该符号
+TVServer.obj : error LNK2019: 无法解析的外部符号 "struct AVFormatContext * __cdecl avformat_alloc_context(void)" (?avformat_alloc_context@@YAPAUAVFormatContext@@XZ)，函数 _main 中引用了该符号
+TVServer.obj : error LNK2019: 无法解析的外部符号 "int __cdecl avformat_open_input(struct AVFormatContext * *,char const *,struct AVInputFormat const *,struct AVDictionary * *)" (?avformat_open_input@@YAHPAPAUAVFormatContext@@PBDPBUAVInputFormat@@PAPAUAVDictionary@@@Z)，函数 _main 中引用了该符号
+TVServer.obj : error LNK2019: 无法解析的外部符号 "int __cdecl avformat_find_stream_info(struct AVFormatContext *,struct AVDictionary * *)" (?avformat_find_stream_info@@YAHPAUAVFormatContext@@PAPAUAVDictionary@@@Z)，函数 _main 中引用了该符号
+TVServer.obj : error LNK2019: 无法解析的外部符号 "int __cdecl av_read_frame(struct AVFormatContext *,struct AVPacket *)" (?av_read_frame@@YAHPAUAVFormatContext@@PAUAVPacket@@@Z)，函数 _main 中引用了该符号
+C:\Users\bitstream\Desktop\tv\windows\c++\ffmpeg\lib\avformat.lib : warning LNK4272: 库计算机类型“x64”与目标计算机类型“x86”冲突
+C:\Users\bitstream\Desktop\tv\windows\c++\ffmpeg\lib\avcodec.lib : warning LNK4272: 库计算机类型“x64”与目标计算机类型“x86”冲突
+C:\Users\bitstream\Desktop\tv\windows\c++\ffmpeg\lib\avutil.lib : warning LNK4272: 库计算机类型“x64”与目标计算机类型“x86”冲突
+C:\Users\bitstream\Desktop\tv\windows\c++\ffmpeg\lib\avdevice.lib : warning LNK4272: 库计算机类型“x64”与目标计算机类型“x86”冲突
+C:\Users\bitstream\Desktop\tv\windows\c++\ffmpeg\lib\avfilter.lib : warning LNK4272: 库计算机类型“x64”与目标计算机类型“x86”冲突
+C:\Users\bitstream\Desktop\tv\windows\c++\ffmpeg\lib\postproc.lib : warning LNK4272: 库计算机类型“x64”与目标计算机类型“x86”冲突
+C:\Users\bitstream\Desktop\tv\windows\c++\ffmpeg\lib\swresample.lib : warning LNK4272: 库计算机类型“x64”与目标计算机类型“x86”冲突
+C:\Users\bitstream\Desktop\tv\windows\c++\ffmpeg\lib\swscale.lib : warning LNK4272: 库计算机类型“x64”与目标计算机类型“x86”冲突
+C:\Users\bitstream\Desktop\tv\windows\c++\TVServer\Debug\TVServer.exe : fatal error LNK1120: 13 个无法解析的外部命令

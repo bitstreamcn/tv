@@ -49,6 +49,27 @@ pc端:
 
 3、电视上安装android\tv\build\outputs\apk\debug\tv-debug.apk并运行。
 
+# 查看调试信息
+
+浏览器打开android/RemoteLogcatViewer/index.html，输入电视IP地址，如：
+
+ws://192.168.2.168:11229/logcat
+
+点open，就可以看到logcat信息了。
+
+# 远程运行shell
+
+打开xshell，协议选择telnet，输入电视IP地址，如：192.168.2.168，端口号：12345；设置终端，换行符-》收到-》选择LF，点击连接。
+
+连接上以后就可以远程运行shell命令了。
+
+
+
+
+
+
+
+
 
 
 

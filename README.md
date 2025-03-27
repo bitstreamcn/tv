@@ -45,7 +45,7 @@ pc端:
 
 1、电脑和电视连接在同一个wifi，保证在同一个局域网下；
 
-2、打开TVServer.exe；
+2、打开windows/c++/TVServer/x64/Debug/TVServer.exe；
 
 3、电视上安装android\tv\build\outputs\apk\debug\tv-debug.apk并运行。
 

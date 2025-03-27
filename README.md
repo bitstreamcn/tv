@@ -8,6 +8,26 @@
 
 windows服务端使用ffmpeg解码，具体版本为BtbN编译的ffmpeg-n6.1-latest-win64-gpl-shared-6.1.zip，下载地址https://github.com/BtbN/FFmpeg-Builds/releases。
 
+# 视频质量调节
+
+如果默认视频质量无法满足要求，想看更高清质量的，可以调以下参数。
+
+windows/c++/TVServer/media.cpp
+
+找到下面代码
+
+    std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string((uint32_t)seek_target_ / 1000000) + " -i \"" + pathgb2312 + "\" -c:v libx264 -preset faster -tune zerolatency -maxrate 1.5M -b:v 1.5M -c:a aac -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+
+修改preset参数和tune参数
+
+tune影响解码编码质量，可以为 film/animation/grain/stillimage/psnr/ssim/fastdecode/zerolatency，其中film质量最高，zerolatency质量最低；
+
+preset影响解码编码速度，可以为 ultrafast/superfast/veryfast/faster/fast/medium/slow/slower/veryslow，ultrafast速度最快，veryslow速度最慢；
+
+根据电脑性能设置上面两个参数
+
+maxrate参数设置帧率，根据网络速度设置。
+
 # 运行环境
 python版本：Python 3.10.6
 

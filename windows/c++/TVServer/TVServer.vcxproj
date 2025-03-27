@@ -80,8 +80,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>C:\Users\bitstream\Desktop\tv\windows\c++\ffmpeg\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\bitstream\Desktop\tv\windows\c++\ffmpeg\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(ProjectDir)..\ffmpeg\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)..\ffmpeg\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>

@@ -346,7 +346,7 @@ void Session::control_fun()
                 response["message"] = "";
                 response["duration"] = media->Duration();
             }
-            else if (cmd["action"] == "enc") {
+            else if (cmd["action"] == "enc" || cmd["action"] == "encode") {
                 std::string path = cmd["path"]; //返回的是UTF-8格式
                 bool ists = isTsFile(path);
                 if (ists)
@@ -364,7 +364,7 @@ void Session::control_fun()
                     std::string outputPath = directory + "\\" + filenameWithoutExt + ".ts";
 
                     // 构建 ffmpeg 命令
-                    std::string ffmpegCommand = "ffmpeg -y -re -i \"" + pathgb2312 + "\" -c:v libx264 -preset medium -tune fastdecode -crf 23 -bufsize 6M -maxrate 5M -b:v 2M -c:a aac -b:a 160k -f mpegts \"" + outputPath + "\"";
+                    std::string ffmpegCommand = "ffmpeg -y -re -i \"" + pathgb2312 + "\" -c:v libx264 -preset slow -tune film -crf 23 -bufsize 6M -maxrate 5M -b:v 2M -c:a aac -b:a 160k -f mpegts \"" + outputPath + "\"";
 
                     STARTUPINFO si = { sizeof(si) };
                     PROCESS_INFORMATION pi;

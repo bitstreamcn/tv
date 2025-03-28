@@ -28,7 +28,15 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.RenderersFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.ExtractorsFactory
+import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.ui.PlayerView
+import jcifs.CIFSContext
+import jcifs.config.PropertyConfiguration
+import jcifs.context.BaseContext
+import jcifs.context.SingletonContext
+import jcifs.smb.NtlmPasswordAuthenticator
 import jcifs.smb.SmbException
 import jcifs.smb.SmbFile
 import jcifs.smb.SmbFileInputStream
@@ -229,12 +237,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
 
     }
 
-    // 正确写法：使用 DefaultRenderersFactory 并启用 FFmpeg 扩展
-    fun buildRenderersFactory(context: Context): RenderersFactory {
-        return DefaultRenderersFactory(context)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
-    }
-    
+
     private fun setupPlayer() {
         try {
             player?.release()
@@ -255,7 +258,6 @@ class SmbVideoPlayerActivity : ComponentActivity() {
                 .build()
 
             player = ExoPlayer.Builder(this)
-                .setRenderersFactory(buildRenderersFactory(this))
                 .setTrackSelector(trackSelector)
                 .setLoadControl(loadControl)
                 .build()
@@ -429,9 +431,29 @@ class SmbVideoPlayerActivity : ComponentActivity() {
         private var bytesRemaining: Long = 0
         private var uri : String = ""
 
+        private fun createCifsContext(): CIFSContext {
+            val props = java.util.Properties().apply {
+                // 设置超时时间（单位：毫秒）
+                setProperty("jcifs.smb.client.responseTimeout", "5000")
+                setProperty("jcifs.smb.client.soTimeout", "5000")
+                // 禁用签名验证（根据服务器配置调整）
+                setProperty("jcifs.smb.client.disableSMB2SignatureVerify", "true")
+            }
+            val config = PropertyConfiguration(props)
+            return BaseContext(config)
+        }
+
         override fun open(dataSpec: DataSpec): Long {
 
             close()
+
+            // 初始化CIFS上下文
+            val properties = java.util.Properties()
+            val smbUri = java.net.URI.create(dataSpec.uri.toString())
+            val cifsContext = createCifsContext()
+            val authenticator = NtlmPasswordAuthenticator(null, smbUri.userInfo.split(":")[0], smbUri.userInfo.split(":")[1]) // 域参数传 null（默认）
+            // 构建认证上下文
+            val authContext = cifsContext.withCredentials(authenticator)
 
             // 解析 SMB URL（格式：smb://username:password@host/share/path/file.mp4）
             val _uri = dataSpec.uri
@@ -439,7 +461,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
             Log.d("SmbDataSource", _uri.toString())
 
             try {
-                smbFile = SmbFile(_uri.toString())
+                smbFile = SmbFile(_uri.toString(), authContext)
                 inputStream = SmbFileInputStream(smbFile)
             } catch (e: SmbException) {
                 Log.e("SambaError", "Samba 文件打开错误: ${e.message}", e)
@@ -782,12 +804,6 @@ class SmbVideoPlayerActivity : ComponentActivity() {
     }
 
 
-
-
-
-
-
-
     
     private fun showToast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
@@ -815,6 +831,10 @@ class SmbVideoPlayerActivity : ComponentActivity() {
         
         // 停止进度更新
         stopProgressUpdate()
+
+        stopScreenshotTimer()
+
+
     }
     
     override fun onResume() {

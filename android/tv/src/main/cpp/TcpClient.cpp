@@ -182,18 +182,21 @@ bool TcpClient::processReceivedData() {
             filesize = length;
             writesize = 0;
             recvBuffer.erase(recvBuffer.begin(), recvBuffer.begin() + HEADER_SIZE);
-        }
-        size_t totalSize = HEADER_SIZE + length;
-        if (recvBuffer.size() >= totalSize) {
-            std::vector<uint8_t> response(
-                recvBuffer.begin() + HEADER_SIZE,
-                recvBuffer.begin() + totalSize
-            );
-            responseQueue.push(std::move(response));
-            recvBuffer.erase(recvBuffer.begin(), recvBuffer.begin() + totalSize);
-            cv.notify_all();
-        } else {
             break;
+        }
+        else {
+            size_t totalSize = HEADER_SIZE + length;
+            if (recvBuffer.size() >= totalSize) {
+                std::vector<uint8_t> response(
+                        recvBuffer.begin() + HEADER_SIZE,
+                        recvBuffer.begin() + totalSize
+                );
+                responseQueue.push(std::move(response));
+                recvBuffer.erase(recvBuffer.begin(), recvBuffer.begin() + totalSize);
+                cv.notify_all();
+            } else {
+                break;
+            }
         }
     }
     //写入文件
@@ -219,10 +222,10 @@ bool TcpClient::processReceivedData() {
             else{
                 str = "{\"status\":\"success\"}";
             }
+            file.close();
             std::vector<uint8_t> vec(str.begin(), str.end());
             responseQueue.push(std::move(vec));
             cv.notify_all();
-            file.close();
         }
     }
     return true;

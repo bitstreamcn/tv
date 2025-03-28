@@ -189,7 +189,7 @@ Java_com_zlang_tv_TcpControlClient_nativeSendRequestDownload(
     }
 
     std::vector<uint8_t> response;
-    if (client->receiveResponse(response)) {
+    if (client->receiveResponse(response, 1000 * 60 * 5)) {
         while(client->receiveResponse(response, 0)); //取出所有返回数据，避免出现返回上一次请求结果
         jbyteArray result = env->NewByteArray(response.size());
         env->SetByteArrayRegion(result, 0, response.size(),

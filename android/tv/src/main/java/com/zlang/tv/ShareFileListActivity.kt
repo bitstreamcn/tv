@@ -22,11 +22,19 @@ import androidx.recyclerview.widget.RecyclerView
 
 import com.zlang.tv.MainActivity.Companion.unfinishedRecords
 import com.zlang.tv.ShareListActivity.Companion
+import jcifs.CIFSContext
+import jcifs.config.PropertyConfiguration
+import jcifs.context.BaseContext
+import jcifs.context.SingletonContext
+import jcifs.smb.NtlmPasswordAuthenticator
 import jcifs.smb.SmbException
 import jcifs.smb.SmbFile
+import jcifs.smb.SmbFileInputStream
+import org.bouncycastle.util.Properties
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 
 class ShareFileListActivity : ComponentActivity() {
@@ -226,6 +234,54 @@ class ShareFileListActivity : ComponentActivity() {
 
         return downloadsDir
     }
+
+    private fun createCifsContext(): CIFSContext {
+        val props = java.util.Properties().apply {
+            // 设置超时时间（单位：毫秒）
+            setProperty("jcifs.smb.client.responseTimeout", "5000")
+            setProperty("jcifs.smb.client.soTimeout", "5000")
+            // 禁用签名验证（根据服务器配置调整）
+            setProperty("jcifs.smb.client.disableSMB2SignatureVerify", "true")
+        }
+        val config = PropertyConfiguration(props)
+        return BaseContext(config)
+    }
+
+    fun downloadSmbFile(smbUrl: String, localFilePath: String) {
+        // 初始化CIFS上下文
+        val properties = java.util.Properties()
+        val smbUri = java.net.URI.create(smbUrl)
+        val cifsContext = createCifsContext()
+        val authenticator = NtlmPasswordAuthenticator(null, smbUri.userInfo.split(":")[0], smbUri.userInfo.split(":")[1]) // 域参数传 null（默认）
+        // 构建认证上下文
+        val authContext = cifsContext.withCredentials(authenticator)
+
+        try {
+            // 创建SmbFile对象
+            val smbFile = SmbFile(smbUrl, authContext)
+
+            // 检查文件是否存在
+            if (smbFile.exists()) {
+                // 创建本地文件
+                val localFile = File(localFilePath)
+                localFile.parentFile?.mkdirs() // 创建父目录
+                localFile.createNewFile()
+
+                // 下载文件
+                SmbFileInputStream(smbFile).use { inputStream ->
+                    FileOutputStream(localFile).use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+                println("文件下载成功：$localFilePath")
+            } else {
+                println("远程文件不存在：$smbUrl")
+            }
+        } catch (e: IOException) {
+            e.printStackTrace()
+            println("文件下载失败：$e")
+        }
+    }
     
     private fun handleFileItemClick(item: FileItem) {
 
@@ -245,6 +301,7 @@ class ShareFileListActivity : ComponentActivity() {
                 loadFileList()
             }
             "file" -> {
+                Log.d("click", item.path)
                 if (isVideoFile(item.path)) {
                     //SMB URL（格式：smb://username:password@host/share/path/file.mp4）
                     val path = item.path
@@ -254,39 +311,22 @@ class ShareFileListActivity : ComponentActivity() {
                     startActivity(intent)
 
                 }
-                else if (item.path.toString().toLowerCase().endsWith(".apk"))
+                else if (item.path.lowercase().endsWith(".apk"))
                 {
                     Thread {
                         try {
-                            val command = JSONObject().apply {
-                                put("action", "download")
-                                put("path", item.path)
-                            }
-
-                            val commandStr = command.toString()
-                            Log.d(TAG, "发送编码命令: $commandStr")
-                            runOnUiThread {
-                                showToast("开始下载。。。")
-                            }
                             val fileName = getFileNameFromPath(item.path)
                             // 目标目录
                             val downloadsDir = getDownloadsDir()
 
                             // 目标文件路径
                             val targetFilePath = File(downloadsDir, fileName).absolutePath + "1" //坚果系统只能安装.apk1类型的文件
-                            val response = TcpControlClient.sendTlv(commandStr, targetFilePath)
+
+                            downloadSmbFile(item.path, targetFilePath)
 
                             runOnUiThread {
                                 showLoading(false)
-
-                                if (response == null) {
-                                    showToast("发送安装命令失败")
-                                    return@runOnUiThread
-                                }
                                 try {
-                                    val jsonResponse = response
-                                    if (jsonResponse.getString("status") == "success") {
-// 假设你已经下载了一个APK文件到某个位置，并且你知道它的URI
                                         val apkUri = Uri.fromFile(File(targetFilePath)) // 注意：在Android 10及以上，你可能需要使用FileProvider来获取content URI
 
                                         val installIntent = Intent(Intent.ACTION_VIEW)
@@ -294,17 +334,13 @@ class ShareFileListActivity : ComponentActivity() {
                                         installIntent.type = "application/vnd.android.package-archive"
                                         installIntent.flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
 
-// 检查是否有处理这个Intent的Activity
                                         if (installIntent.resolveActivity(packageManager) != null) {
                                             startActivity(installIntent)
                                         } else {
                                             // 显示错误消息或处理无法安装的情况
                                             showToast("安装失败: $targetFilePath")
                                         }
-                                    } else {
-                                        val errorMessage = jsonResponse.optString("message", "未知错误")
-                                        showToast("安装失败: $errorMessage")
-                                    }
+
                                 } catch (e: Exception) {
                                     Log.e(TAG, "解析响应出错", e)
                                     showToast("解析响应出错")

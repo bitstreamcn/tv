@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.util.Log
@@ -16,6 +17,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.core.content.FileProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.zlang.tv.MainActivity.Companion.finishedRecords
@@ -255,6 +257,30 @@ class FileListActivity : ComponentActivity() {
 
         return downloadsDir
     }
+
+    private fun installApk(apkFilePath: String) {
+        val apkFile = File(apkFilePath)
+        if (apkFile.exists()) {
+            val intent = Intent(Intent.ACTION_VIEW)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                // Android 7.0 及以上版本需要使用 FileProvider
+                intent.flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                val contentUri = FileProvider.getUriForFile(
+                    this,
+                    "$packageName.fileprovider",
+                    apkFile
+                )
+                intent.setDataAndType(contentUri, "application/vnd.android.package-archive")
+            } else {
+                intent.setDataAndType(
+                    Uri.fromFile(apkFile),
+                    "application/vnd.android.package-archive"
+                )
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        }
+    }
     
     private fun handleFileItemClick(item: FileItem) {
 
@@ -342,17 +368,23 @@ class FileListActivity : ComponentActivity() {
 // 假设你已经下载了一个APK文件到某个位置，并且你知道它的URI
                                         val apkUri = Uri.fromFile(File(targetFilePath)) // 注意：在Android 10及以上，你可能需要使用FileProvider来获取content URI
 
-                                        val installIntent = Intent(Intent.ACTION_VIEW)
-                                        installIntent.data = apkUri
-                                        installIntent.type = "application/vnd.android.package-archive"
-                                        installIntent.flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                        try {
+                                            installApk(targetFilePath)
+                                        }catch (e : Exception) {
+                                            val installIntent = Intent(Intent.ACTION_VIEW)
+                                            installIntent.data = apkUri
+                                            installIntent.type =
+                                                "application/vnd.android.package-archive"
+                                            installIntent.flags =
+                                                Intent.FLAG_GRANT_READ_URI_PERMISSION
 
 // 检查是否有处理这个Intent的Activity
-                                        if (installIntent.resolveActivity(packageManager) != null) {
-                                            startActivity(installIntent)
-                                        } else {
-                                            // 显示错误消息或处理无法安装的情况
-                                            showToast("安装失败: $targetFilePath")
+                                            if (installIntent.resolveActivity(packageManager) != null) {
+                                                startActivity(installIntent)
+                                            } else {
+                                                // 显示错误消息或处理无法安装的情况
+                                                showToast("安装失败: $targetFilePath")
+                                            }
                                         }
                                     } else {
                                         val errorMessage = jsonResponse.optString("message", "未知错误")

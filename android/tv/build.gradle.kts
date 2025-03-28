@@ -57,6 +57,11 @@ android {
     buildFeatures {
         compose = true
     }
+
+    configurations.all {
+        exclude(group = "org.bouncycastle", module = "bcprov-jdk15on")
+        exclude(group = "org.bouncycastle", module = "bcprov-jdk18on")
+    }
 }
 
 dependencies {
@@ -89,7 +94,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-rtsp:$media3_version")
     // For MIDI playback support with ExoPlayer (see additional dependency requirements in
     // https://github.com/androidx/media/blob/release/libraries/decoder_midi/README.md)
-    implementation("androidx.media3:media3-exoplayer-midi:$media3_version")
+    //implementation("androidx.media3:media3-exoplayer-midi:$media3_version")
     // For ad insertion using the Interactive Media Ads SDK with ExoPlayer
     implementation("androidx.media3:media3-exoplayer-ima:$media3_version")
 

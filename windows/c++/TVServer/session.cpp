@@ -386,6 +386,19 @@ void Session::control_fun()
                     response["status"] = "success";
                 }
             }
+            else if (cmd["action"] == "smblist") {
+                nlohmann::json list = nlohmann::json::array();
+                nlohmann::json server;
+                server["name"] = "bitstream";
+                server["ip"] = "192.168.2.80";
+                server["user"] = "tv";
+                server["password"] = "tv";
+                list.push_back(server);
+
+                response["status"] = "success";
+                response["message"] = "";
+                response["items"] = list;
+            }
             // ·¢ËÍÏìÓ¦
             send_tlv_packet(ctrl_sock, response);
         }

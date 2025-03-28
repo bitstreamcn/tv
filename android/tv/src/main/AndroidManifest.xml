@@ -36,9 +36,29 @@
             android:theme="@style/Theme.Tv.Fullscreen"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="false" />
+        <activity
+            android:name=".SmbVideoPlayerActivity"
+            android:theme="@style/Theme.Tv.Fullscreen"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:exported="false" />
             
         <activity
             android:name=".FileListActivity"
+            android:theme="@style/Theme.Tv"
+            android:exported="false" />
+
+        <activity
+            android:name=".SmbServerListActivity"
+            android:theme="@style/Theme.Tv"
+            android:exported="false" />
+
+        <activity
+            android:name=".ShareListActivity"
+            android:theme="@style/Theme.Tv"
+            android:exported="false" />
+
+        <activity
+            android:name=".ShareFileListActivity"
             android:theme="@style/Theme.Tv"
             android:exported="false" />
             

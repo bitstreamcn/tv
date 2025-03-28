@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
 
         var unfinishedRecords = mutableListOf<VideoRecord>()
         var finishedRecords = mutableListOf<VideoRecord>()
+        var smbServer : JSONArray? = null
 
         private const val TAG = "MainActivity"
         private const val PREFS_NAME = "ServerSettings"
@@ -175,6 +176,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+
+        CrashHandler.getInstance().init(this)
 
         setContentView(R.layout.activity_main)
         instance = this
@@ -386,6 +389,7 @@ class MainActivity : ComponentActivity() {
         bufferMonitor = BufferMonitor().apply {
             start()
         }
+
         LogcatRunner.getInstance().config(LogcatRunner.LogConfig.builder().write2File(true)).start()
     }
 
@@ -598,6 +602,7 @@ class MainActivity : ComponentActivity() {
                     connectToServer()
                     if (isConnected) {
                         loadFileList()
+                        loadSmbServer()
                         break
                     }
                 } catch (e: Exception) {
@@ -978,9 +983,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun playVideo(path: String, startPosition: Long = 0) {
-        // 启动VideoPlayerActivity
-        val intent = VideoPlayerActivity.createIntent(this, path, startPosition, serverIp)
-        startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+        if (path.startsWith("smb://")) {
+            // 启动VideoPlayerActivity
+            val intent = SmbVideoPlayerActivity.createIntent(this, path, startPosition, serverIp)
+            startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+        }else{
+            val intent = VideoPlayerActivity.createIntent(this, path, startPosition, serverIp)
+            startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+        }
     }
 
     // 处理从VideoPlayerActivity返回的结果
@@ -1037,6 +1047,37 @@ class MainActivity : ComponentActivity() {
         Log.d("Navigation", "从播放界面返回完成")
     }
 
+    private fun loadSmbServer() {
+        if (!isConnected) {
+            return
+        }
+
+        val command = JSONObject().apply {
+            put("action", "smblist")
+        }
+
+        Thread {
+            try {
+                val commandStr = command.toString()
+                Log.d("ServerComm", "发送数据: $commandStr")
+                val response = TcpControlClient.sendTlv(commandStr)
+
+                Log.d("ServerComm", "接收数据: $response")
+
+                if (response == null) {
+                    isConnected = false
+                    connectToServerWithRetry()
+                    return@Thread
+                }
+                if (response.getString("status") == "success") {
+                    smbServer = response.getJSONArray("items")
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error stopping video stream", e)
+            }
+        }.start()
+    }
+
     private fun stopVideoStream() {
         if (!isConnected) {
             return
@@ -1083,7 +1124,12 @@ class MainActivity : ComponentActivity() {
                 // 启动FileListActivity
                 val intent = FileListActivity.createIntent(this, serverIp)
                 startActivity(intent)
-            }
+            },
+            Command("Windows共享", R.drawable.ic_browse) {
+            // 启动FileListActivity
+            val intent = SmbServerListActivity.createIntent(this, serverIp)
+            startActivity(intent)
+        }
         )
         commandRecyclerView.adapter = CommandAdapter(commands)
 

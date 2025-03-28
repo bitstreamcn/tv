@@ -32,6 +32,7 @@ object TcpControlClient {
     private external fun nativeConnect(handle: Long, ip: String, port: Int): Boolean
     private external fun nativeDisconnect(handle: Long)
     private external fun nativeSendRequest(handle: Long, data: ByteArray): ByteArray?
+    private external fun nativeSendRequestDownload(handle: Long, data: ByteArray, filename: String): ByteArray?
     private external fun nativeDestroyClient(handle: Long)
     private external fun nativeisRunning(handle: Long): Boolean
     external fun nativeSendBroadcastAndReceive(list: ArrayList<String>, timeoutSeconds: Int)
@@ -86,15 +87,18 @@ object TcpControlClient {
         checkAndReconnect()
     }
 
-    fun sendTlv(json: String): JSONObject {
+    fun sendTlv(json: String, filename: String? = null): JSONObject {
         checkAndReconnect()
         synchronized(this) {
             if (nativeHandle != 0L)
             {
                 val noResponse = "{}".toByteArray()
                 val requestData = json.toByteArray(StandardCharsets.UTF_8)
-                val responseData = nativeSendRequest(nativeHandle, requestData)
-                    ?: noResponse
+                val responseData = if (null == filename){
+                    nativeSendRequest(nativeHandle, requestData) ?: noResponse
+                }else{
+                    nativeSendRequestDownload(nativeHandle, requestData, filename) ?: noResponse
+                }
                 if (responseData == null)
                 {
                     return JSONObject()

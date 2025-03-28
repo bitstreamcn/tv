@@ -59,7 +59,7 @@ android {
     }
 
     configurations.all {
-        exclude(group = "org.bouncycastle", module = "bcprov-jdk15on")
+        //exclude(group = "org.bouncycastle", module = "bcprov-jdk15on")
         exclude(group = "org.bouncycastle", module = "bcprov-jdk18on")
     }
 }

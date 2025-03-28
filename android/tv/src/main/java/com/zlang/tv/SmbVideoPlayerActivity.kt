@@ -440,9 +440,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
 
             try {
                 smbFile = SmbFile(_uri.toString())
-                if (smbFile?.exists()?:false && !(smbFile?.isDirectory?:false)) {
-                    inputStream = SmbFileInputStream(smbFile)
-                }
+                inputStream = SmbFileInputStream(smbFile)
             } catch (e: SmbException) {
                 Log.e("SambaError", "Samba 文件打开错误: ${e.message}", e)
             } catch (e: IOException) {
@@ -479,7 +477,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
         }
 
         override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-            if (bytesRemaining == 0L) {
+            if (bytesRemaining == 0L || null == inputStream) {
                 return C.RESULT_END_OF_INPUT
             }
 

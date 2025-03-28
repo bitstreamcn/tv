@@ -22,6 +22,7 @@ static std::mutex _mutex;
 static uint32_t autoinc_id = 1000;
 
 const uint32_t MAGIC_T = 0x7a321465;
+const uint32_t MAGIC_T_DOWNLOAD = 0x7a321466;
 
 void log(std::string s)
 {
@@ -149,6 +150,75 @@ void send_tlv_packet(SOCKET sock, const nlohmann::json& json) {
     send(sock, json_str.data(), (int)json_str.size(), 0);
 }
 
+bool send_file(SOCKET sock, const std::string filename) {
+
+    // 以二进制模式打开文件
+    std::ifstream file(filename, std::ios::binary | std::ios::ate);
+    if (!file.is_open()) {
+        std::cerr << "无法打开文件: " << filename << std::endl;
+        return false;
+    }
+
+    // 获取文件大小
+    std::streamsize filesize = file.tellg();
+    file.seekg(0, std::ios::beg); // 重置文件指针到文件开头
+
+    // 创建一个缓冲区来存储文件内容
+    std::vector<char> buffer(filesize);
+
+    // 读取文件内容到缓冲区
+    if (!file.read(buffer.data(), filesize)) {
+        std::cerr << "读取文件失败: " << filename << std::endl;
+        file.close();
+        return false;
+    }
+
+    // 构造TLV
+    uint32_t t_net = htonl(MAGIC_T_DOWNLOAD);
+    uint32_t l_net = htonl(static_cast<uint32_t>(filesize));
+
+    // 发送头部
+    //send(sock, reinterpret_cast<char*>(&t_net), 4, 0); //重复发送，因为android DataOutputStream/DataInputStream会吃掉4个字节
+    send(sock, reinterpret_cast<char*>(&t_net), 4, 0);
+
+    send(sock, reinterpret_cast<char*>(&l_net), 4, 0);
+
+    // 发送数据
+    std::streamsize sent = 0;
+    bool haserr = false;
+    while (sent < filesize)
+    {
+        int ret = send(sock, buffer.data() + sent, (int)(filesize - sent), 0);
+        if (ret == SOCKET_ERROR) {
+            int error = WSAGetLastError();
+            if (error == WSAEWOULDBLOCK) {
+                // 发送缓冲区满，稍后重试
+                std::cout << "发送缓冲区满，稍后重试..." << std::endl;
+                // 这里可以添加一些延迟，然后再次尝试发送
+                // 例如：Sleep(100); // 注意：Sleep函数的参数是毫秒
+                Sleep(100);
+                continue;
+            }
+            else {
+                // 其他错误处理
+                std::cerr << "发送数据失败，错误码: " << error << std::endl;
+                haserr = true;
+                break;
+            }
+        }
+        else if (ret == 0) {
+            // 连接已关闭
+            std::cerr << "连接已关闭" << std::endl;
+            haserr = true;
+            break;
+        }
+        sent += ret;
+    }
+    // 关闭文件
+    file.close();
+
+    return !haserr;
+}
 
 Session::Session()
 {
@@ -398,6 +468,14 @@ void Session::control_fun()
                 response["status"] = "success";
                 response["message"] = "";
                 response["items"] = list;
+            }
+            else if (cmd["action"] == "download") {
+                std::string path = cmd["path"]; //返回的是UTF-8格式
+                std::string pathgb2312 = UTF8ToGB2312(path);
+                if (send_file(ctrl_sock, pathgb2312))
+                {
+                    continue;
+                }
             }
             // 发送响应
             send_tlv_packet(ctrl_sock, response);

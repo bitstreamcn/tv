@@ -3,7 +3,9 @@ package com.zlang.tv
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.util.Log
 import android.view.KeyEvent
 import android.view.LayoutInflater
@@ -14,6 +16,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.text.toLowerCase
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
@@ -205,6 +208,24 @@ class ShareFileListActivity : ComponentActivity() {
         }
         return pathkey
     }
+
+    fun getFileNameFromPath(path: String): String {
+        return path.split(Regex("""[/\\]""")).last() // 使用正则表达式匹配/或\，并获取最后一个部分作为文件名
+    }
+
+    fun getDownloadsDir(): File {
+        val externalStorageDirectory = Environment.getExternalStorageDirectory()
+        val downloadsDir = File(externalStorageDirectory, Environment.DIRECTORY_DOWNLOADS)
+
+        // 如果Downloads目录不存在，则创建它
+        if (!downloadsDir.exists()) {
+            if (!downloadsDir.mkdirs()) {
+                throw IOException("Failed to create downloads directory")
+            }
+        }
+
+        return downloadsDir
+    }
     
     private fun handleFileItemClick(item: FileItem) {
 
@@ -232,7 +253,73 @@ class ShareFileListActivity : ComponentActivity() {
                         0, serverIp)
                     startActivity(intent)
 
-                } else {
+                }
+                else if (item.path.toString().toLowerCase().endsWith(".apk"))
+                {
+                    Thread {
+                        try {
+                            val command = JSONObject().apply {
+                                put("action", "download")
+                                put("path", item.path)
+                            }
+
+                            val commandStr = command.toString()
+                            Log.d(TAG, "发送编码命令: $commandStr")
+                            runOnUiThread {
+                                showToast("开始下载。。。")
+                            }
+                            val fileName = getFileNameFromPath(item.path)
+                            // 目标目录
+                            val downloadsDir = getDownloadsDir()
+
+                            // 目标文件路径
+                            val targetFilePath = File(downloadsDir, fileName).absolutePath + "1" //坚果系统只能安装.apk1类型的文件
+                            val response = TcpControlClient.sendTlv(commandStr, targetFilePath)
+
+                            runOnUiThread {
+                                showLoading(false)
+
+                                if (response == null) {
+                                    showToast("发送安装命令失败")
+                                    return@runOnUiThread
+                                }
+                                try {
+                                    val jsonResponse = response
+                                    if (jsonResponse.getString("status") == "success") {
+// 假设你已经下载了一个APK文件到某个位置，并且你知道它的URI
+                                        val apkUri = Uri.fromFile(File(targetFilePath)) // 注意：在Android 10及以上，你可能需要使用FileProvider来获取content URI
+
+                                        val installIntent = Intent(Intent.ACTION_VIEW)
+                                        installIntent.data = apkUri
+                                        installIntent.type = "application/vnd.android.package-archive"
+                                        installIntent.flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+
+// 检查是否有处理这个Intent的Activity
+                                        if (installIntent.resolveActivity(packageManager) != null) {
+                                            startActivity(installIntent)
+                                        } else {
+                                            // 显示错误消息或处理无法安装的情况
+                                            showToast("安装失败: $targetFilePath")
+                                        }
+                                    } else {
+                                        val errorMessage = jsonResponse.optString("message", "未知错误")
+                                        showToast("安装失败: $errorMessage")
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "解析响应出错", e)
+                                    showToast("解析响应出错")
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "发送安装命令出错", e)
+                            runOnUiThread {
+                                showLoading(false)
+                                showToast("发送安装命令出错")
+                            }
+                        }
+                    }.start()
+                }
+                else {
                     showToast("不支持的文件类型")
                 }
             }

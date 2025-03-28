@@ -168,6 +168,37 @@ Java_com_zlang_tv_TcpControlClient_nativeSendRequest(
     return nullptr;
 }
 
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_zlang_tv_TcpControlClient_nativeSendRequestDownload(
+        JNIEnv* env, jclass /*clazz*/, jlong handle, jbyteArray data, jstring filename) {
+
+    TcpClient* client = reinterpret_cast<TcpClient*>(handle);
+
+    const char* c_filename = env->GetStringUTFChars(filename, nullptr);
+
+    jsize length = env->GetArrayLength(data);
+    jbyte* bytes = env->GetByteArrayElements(data, nullptr);
+
+    std::vector<uint8_t> request(bytes, bytes + length);
+    bool sendSuccess = client->sendRequest(request, true, c_filename);
+    env->ReleaseByteArrayElements(data, bytes, JNI_ABORT);
+    env->ReleaseStringUTFChars(filename, c_filename);
+
+    if (!sendSuccess) {
+        return nullptr;
+    }
+
+    std::vector<uint8_t> response;
+    if (client->receiveResponse(response)) {
+        while(client->receiveResponse(response, 0)); //取出所有返回数据，避免出现返回上一次请求结果
+        jbyteArray result = env->NewByteArray(response.size());
+        env->SetByteArrayRegion(result, 0, response.size(),
+                                reinterpret_cast<jbyte*>(response.data()));
+        return result;
+    }
+    return nullptr;
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_zlang_tv_TcpControlClient_nativeDestroyClient(
     JNIEnv* /*env*/, jclass /*clazz*/, jlong handle) {

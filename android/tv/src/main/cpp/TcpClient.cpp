@@ -98,9 +98,20 @@ void TcpClient::disconnect() {
     }
 }
 
-bool TcpClient::sendRequest(const std::vector<uint8_t>& data) {
+bool TcpClient::sendRequest(const std::vector<uint8_t>& data, bool download, const std::string filename) {
     std::lock_guard<std::mutex> lock(mutex);
-    
+
+    isdownload = download;
+    if (download)
+    {
+        if (file.is_open())
+        {
+            file.close();
+        }
+        file = std::ofstream(filename, std::ios::binary);
+        begin_download = false;
+    }
+
     // Build TLV packet
     const uint32_t MAGIC_T = 0x7a321465;
     uint32_t type = htonl(MAGIC_T);
@@ -155,16 +166,23 @@ void TcpClient::receiveThreadFunc() {
 bool TcpClient::processReceivedData() {
     const size_t HEADER_SIZE = 8;
     const uint32_t MAGIC_T = 0x7a321465;
+    const uint32_t MAGIC_T_DOWNLOAD = 0x7a321466;
 
-    while (recvBuffer.size() >= HEADER_SIZE) {
+    while (!begin_download && recvBuffer.size() >= HEADER_SIZE) {
         uint32_t type = ntohl(*reinterpret_cast<uint32_t*>(recvBuffer.data()));
         uint32_t length = ntohl(*reinterpret_cast<uint32_t*>(recvBuffer.data() + 4));
 
-        if (type != MAGIC_T) {
+        if (type != MAGIC_T && type != MAGIC_T_DOWNLOAD) {
             recvBuffer.erase(recvBuffer.begin(), recvBuffer.begin() + 4);
             continue;
         }
-
+        if (type == MAGIC_T_DOWNLOAD)
+        {
+            begin_download = true;
+            filesize = length;
+            writesize = 0;
+            recvBuffer.erase(recvBuffer.begin(), recvBuffer.begin() + HEADER_SIZE);
+        }
         size_t totalSize = HEADER_SIZE + length;
         if (recvBuffer.size() >= totalSize) {
             std::vector<uint8_t> response(
@@ -176,6 +194,35 @@ bool TcpClient::processReceivedData() {
             cv.notify_all();
         } else {
             break;
+        }
+    }
+    //写入文件
+    if (begin_download)
+    {
+        while (writesize < filesize && recvBuffer.size() > 0)
+        {
+            int realsize = std::min((size_t)(filesize - writesize), (size_t)recvBuffer.size());
+            file.write(reinterpret_cast<char*>(recvBuffer.data()), realsize);
+            writesize += realsize;
+            recvBuffer.erase(recvBuffer.begin(), recvBuffer.begin() + realsize);
+        }
+        if (writesize == filesize)
+        {
+            //下载文件结束
+            file.flush();
+            begin_download = false;
+            //发送返回包
+            std::string str;
+            if (file.fail()) {
+                str = "{\"status\":\"fail\"}";
+            }
+            else{
+                str = "{\"status\":\"success\"}";
+            }
+            std::vector<uint8_t> vec(str.begin(), str.end());
+            responseQueue.push(std::move(vec));
+            cv.notify_all();
+            file.close();
         }
     }
     return true;

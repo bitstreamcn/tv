@@ -1071,6 +1071,7 @@ class MainActivity : ComponentActivity() {
                 }
                 if (response.getString("status") == "success") {
                     smbServer = response.getJSONArray("items")
+                    SmbConnectionManager.init(smbServer)
                 }
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error stopping video stream", e)

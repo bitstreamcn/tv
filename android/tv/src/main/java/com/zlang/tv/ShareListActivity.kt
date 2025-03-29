@@ -115,34 +115,15 @@ class ShareListActivity : ComponentActivity() {
 
 
     class SmbShareScanner {
-
-        // 初始化 CIFS 上下文（配置参数）
-        private fun createCifsContext(): CIFSContext {
-            val props = Properties().apply {
-                // 设置超时时间（单位：毫秒）
-                setProperty("jcifs.smb.client.responseTimeout", "5000")
-                setProperty("jcifs.smb.client.soTimeout", "5000")
-                // 禁用签名验证（根据服务器配置调整）
-                setProperty("jcifs.smb.client.disableSMB2SignatureVerify", "true")
-            }
-            val config = PropertyConfiguration(props)
-            return BaseContext(config)
-        }
-
         // 获取共享列表
         fun listShares(hostIp: String, username: String?, password: String?) : List<SmbFile>{
             val shareList = mutableListOf<SmbFile>()
             try {
-                val cifsContext = createCifsContext()
-
-                val authenticator = NtlmPasswordAuthenticator(null, username, password) // 域参数传 null（默认）
-
-                // 构建认证上下文
-                val authContext = cifsContext.withCredentials(authenticator)
+                val cifsContext = SmbConnectionManager.getContext(hostIp)
 
                 // 构建 SMB URL（格式：smb://IP_OR_HOSTNAME/）
                 val smbUrl = "smb://$hostIp/"
-                val smbFile = SmbFile(smbUrl, authContext)
+                val smbFile = SmbFile(smbUrl, cifsContext)
 
                 // 列出所有共享
                 val shares = smbFile.listFiles() ?: return shareList
@@ -152,6 +133,7 @@ class ShareListActivity : ComponentActivity() {
                         shareList.add(share)
                     }
                 }
+                smbFile.close()
             } catch (e: MalformedURLException) {
                 Log.e("SMB Error", "Invalid URL: ${e.message}")
             } catch (e: CIFSException) {

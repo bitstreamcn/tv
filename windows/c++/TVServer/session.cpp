@@ -390,7 +390,7 @@ void Session::control_fun()
                 double pts = cmd["start_time"];
                 log("stream：" + UTF8ToGB2312(path + std::string(" - ") + std::to_string(pts)));
                 memset(&run_status, 0, sizeof(run_status));
-                
+
                 bool raw = isTsFile(path);
                 if (nullptr != media) {
                     delete media;
@@ -449,6 +449,48 @@ void Session::control_fun()
                     // 构建 ffmpeg 命令
                     std::string ffmpegCommand = "ffmpeg -y -re -i \"" + pathgb2312 + "\" -c:v libx264 -preset slow -tune film -crf 23 -bufsize 6M -maxrate 5M -b:v 2M -c:a aac -b:a 160k -f mpegts \"" + outputPath + "\"";
                     //std::string ffmpegCommand = "ffmpeg -y -i \"" + pathgb2312 + "\" -c copy -f mpegts \"" + outputPath + "\"";
+
+                    STARTUPINFO si = { sizeof(si) };
+                    PROCESS_INFORMATION pi;
+                    // 创建新进程执行 FFmpeg 命令
+                    if (CreateProcess(NULL, const_cast<char*>(ffmpegCommand.c_str()), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+                        std::cout << "FFmpeg process started." << std::endl;
+
+                        // 等待进程结束
+                        //WaitForSingleObject(pi.hProcess, INFINITE);
+
+                        // 关闭进程和线程句柄
+                        CloseHandle(pi.hProcess);
+                        CloseHandle(pi.hThread);
+                    }
+                    else {
+                        std::cerr << "Failed to start FFmpeg process. Error code: " << GetLastError() << std::endl;
+                    }
+
+                    response["status"] = "success";
+                }
+            }
+            else if (cmd["action"] == "aac5.1") {
+                std::string path = cmd["path"]; //返回的是UTF-8格式
+                bool ists = isTsFile(path);
+                if (ists)
+                {
+                    response["status"] = "fail";
+                    response["message"] = "无需要转码";
+                }
+                else
+                {
+                    std::string pathgb2312 = UTF8ToGB2312(path);
+                    // 获取文件所在目录和文件名（不包含扩展名）
+                    std::filesystem::path fsPath(pathgb2312);
+                    std::string directory = fsPath.parent_path().string();
+                    std::string filenameWithoutExt = fsPath.stem().string();
+                    std::string outputPath = directory + "\\" + filenameWithoutExt + "_stereo.mp4";
+
+                    // 构建 ffmpeg 命令
+                    std::string ffmpegCommand = "ffmpeg -y -i \"" + pathgb2312 + "\" -map 0 -c:v copy -c:a aac -ac 2 -b:a 192k \"" + outputPath + "\"";
+
+                    std::cout << ffmpegCommand << std::endl;
 
                     STARTUPINFO si = { sizeof(si) };
                     PROCESS_INFORMATION pi;

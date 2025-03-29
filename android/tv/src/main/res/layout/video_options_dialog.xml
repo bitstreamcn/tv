@@ -38,6 +38,22 @@
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:nextFocusUp="@id/openOption"
+        android:nextFocusDown="@id/aacEncodeOption"/>
+
+    <TextView
+        android:id="@+id/aacEncodeOption"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:text="AAC转码"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:background="@drawable/menu_item_background"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:nextFocusUp="@id/openOption"
         android:nextFocusDown="@id/openOption"/>
 
 </LinearLayout> 

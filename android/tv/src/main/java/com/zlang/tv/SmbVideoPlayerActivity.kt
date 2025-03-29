@@ -13,7 +13,9 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.KeyEvent
 import android.view.TextureView
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
@@ -653,29 +655,12 @@ class SmbVideoPlayerActivity : ComponentActivity() {
         private var uri : String = ""
         private val convert = StreamToMPEGTSConverter()
 
-        private fun createCifsContext(): CIFSContext {
-            val props = java.util.Properties().apply {
-                // 设置超时时间（单位：毫秒）
-                setProperty("jcifs.smb.client.responseTimeout", "5000")
-                setProperty("jcifs.smb.client.soTimeout", "5000")
-                // 禁用签名验证（根据服务器配置调整）
-                setProperty("jcifs.smb.client.disableSMB2SignatureVerify", "true")
-            }
-            val config = PropertyConfiguration(props)
-            return BaseContext(config)
-        }
-
         override fun open(dataSpec: DataSpec): Long {
-
             close()
-
             // 初始化CIFS上下文
             val properties = java.util.Properties()
             val smbUri = java.net.URI.create(dataSpec.uri.toString())
-            val cifsContext = createCifsContext()
-            val authenticator = NtlmPasswordAuthenticator(null, smbUri.userInfo.split(":")[0], smbUri.userInfo.split(":")[1]) // 域参数传 null（默认）
-            // 构建认证上下文
-            val authContext = cifsContext.withCredentials(authenticator)
+            val cifsContext = SmbConnectionManager.getContext(smbUri.host)
 
             // 解析 SMB URL（格式：smb://username:password@host/share/path/file.mp4）
             val _uri = dataSpec.uri
@@ -683,7 +668,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
             Log.d("SmbDataSource", _uri.toString())
 
             try {
-                smbFile = SmbFile(_uri.toString(), authContext)
+                smbFile = SmbFile(_uri.toString(), cifsContext)
                 inputStream = SmbFileInputStream(smbFile)
             } catch (e: SmbException) {
                 Log.e("SambaError", "Samba 文件打开错误: ${e.message}", e)
@@ -742,6 +727,8 @@ class SmbVideoPlayerActivity : ComponentActivity() {
             smbFile = null
             convert.close()
         }
+
+
     }
 
     class SmbDataSourceFactory : DataSource.Factory {
@@ -1080,5 +1067,53 @@ class SmbVideoPlayerActivity : ComponentActivity() {
         handler.removeCallbacks(updateTimeRunnable)
 
         isfinish = true;
+    }
+
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        when (keyCode) {
+            KeyEvent.KEYCODE_BACK -> {
+                if (isSeekMode) {
+                    return true
+                }
+                finish()
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                if (isSeekMode) {
+                    if (!(player?.playWhenReady?:false))
+                    {
+                        player?.playWhenReady = !(player?.playWhenReady ?: false)
+                    }
+                    else {
+
+                    }
+                    return true
+                } else {
+                    // 切换播放/暂停状态
+                    player?.playWhenReady = !(player?.playWhenReady ?: false)
+                    Log.d("KeyEvent", "切换播放状态: ${if (player?.playWhenReady == true) "播放" else "暂停"}")
+                    return true
+                }
+            }
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                Log.d("KeyEvent", "处理左右键: ${if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) "左" else "右"}")
+
+                // 立即显示进度条
+                if (!isSeekMode) {
+                    Log.d("KeyEvent", "显示进度条")
+                } else {
+                    // 如果已经显示，则重置自动隐藏定时器
+                    resetAutoHideTimer()
+                }
+
+                return true
+            }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        return super.onKeyUp(keyCode, event)
     }
 } 

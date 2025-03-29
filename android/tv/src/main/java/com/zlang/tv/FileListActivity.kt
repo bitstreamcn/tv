@@ -441,6 +441,7 @@ class FileListActivity : ComponentActivity() {
         
         val openOption = dialog.findViewById<TextView>(R.id.openOption)
         val encodeOption = dialog.findViewById<TextView>(R.id.encodeOption)
+        val aacEncodeOption = dialog.findViewById<TextView>(R.id.aacEncodeOption)
         
         // 设置默认焦点
         dialog.setOnShowListener {
@@ -469,6 +470,11 @@ class FileListActivity : ComponentActivity() {
         encodeOption.setOnClickListener {
             dialog.dismiss()
             sendEncodeCommand(videoPath)
+        }
+
+        aacEncodeOption.setOnClickListener{
+            dialog.dismiss()
+            sendAACEncodeCommand(videoPath)
         }
         
         dialog.show()
@@ -502,6 +508,51 @@ class FileListActivity : ComponentActivity() {
                         return@runOnUiThread
                     }
                     
+                    try {
+                        val jsonResponse = response
+                        if (jsonResponse.getString("status") == "success") {
+                            showToast("编码命令已发送，请稍后查看")
+                        } else {
+                            val errorMessage = jsonResponse.optString("message", "未知错误")
+                            showToast("编码命令失败: $errorMessage")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "解析编码响应出错", e)
+                        showToast("解析编码响应出错")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "发送编码命令出错", e)
+                runOnUiThread {
+                    showLoading(false)
+                    showToast("发送编码命令出错")
+                }
+            }
+        }.start()
+    }
+
+    private fun sendAACEncodeCommand(videoPath: String) {
+        showLoading(true)
+
+        Thread {
+            try {
+                val command = JSONObject().apply {
+                    put("action", "aac5.1")
+                    put("path", videoPath)
+                }
+
+                val commandStr = command.toString()
+                Log.d(TAG, "发送编码命令: $commandStr")
+                val response = TcpControlClient.sendTlv(commandStr)
+
+                runOnUiThread {
+                    showLoading(false)
+
+                    if (response == null) {
+                        showToast("发送编码命令失败")
+                        return@runOnUiThread
+                    }
+
                     try {
                         val jsonResponse = response
                         if (jsonResponse.getString("status") == "success") {

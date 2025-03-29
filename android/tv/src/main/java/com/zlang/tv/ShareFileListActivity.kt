@@ -237,30 +237,16 @@ class ShareFileListActivity : ComponentActivity() {
         return downloadsDir
     }
 
-    private fun createCifsContext(): CIFSContext {
-        val props = java.util.Properties().apply {
-            // 设置超时时间（单位：毫秒）
-            setProperty("jcifs.smb.client.responseTimeout", "5000")
-            setProperty("jcifs.smb.client.soTimeout", "5000")
-            // 禁用签名验证（根据服务器配置调整）
-            setProperty("jcifs.smb.client.disableSMB2SignatureVerify", "true")
-        }
-        val config = PropertyConfiguration(props)
-        return BaseContext(config)
-    }
 
     fun downloadSmbFile(smbUrl: String, localFilePath: String) {
         // 初始化CIFS上下文
         val properties = java.util.Properties()
         val smbUri = java.net.URI.create(smbUrl)
-        val cifsContext = createCifsContext()
-        val authenticator = NtlmPasswordAuthenticator(null, smbUri.userInfo.split(":")[0], smbUri.userInfo.split(":")[1]) // 域参数传 null（默认）
-        // 构建认证上下文
-        val authContext = cifsContext.withCredentials(authenticator)
+        val cifsContext = SmbConnectionManager.getContext(smbServerIp)
 
         try {
             // 创建SmbFile对象
-            val smbFile = SmbFile(smbUrl, authContext)
+            val smbFile = SmbFile(smbUrl, cifsContext)
 
             // 检查文件是否存在
             if (smbFile.exists()) {
@@ -279,6 +265,8 @@ class ShareFileListActivity : ComponentActivity() {
             } else {
                 println("远程文件不存在：$smbUrl")
             }
+
+            smbFile.close()
         } catch (e: IOException) {
             e.printStackTrace()
             println("文件下载失败：$e")

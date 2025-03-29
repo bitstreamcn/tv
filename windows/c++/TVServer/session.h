@@ -31,6 +31,8 @@ private:
 	static void datasend_thread(Session* This);
 	void datasend_fun();
 
+	void clear_queue();
+
 	uint32_t sessionid = 0;
 	SOCKET ctrl_sock = -1;
 	SOCKET data_sock = -1;

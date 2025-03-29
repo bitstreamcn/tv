@@ -17,6 +17,7 @@ import androidx.activity.ComponentActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.zlang.tv.MainActivity.Companion
 import com.zlang.tv.MainActivity.Companion.unfinishedRecords
 import org.json.JSONArray
 import org.json.JSONObject
@@ -133,14 +134,15 @@ class RecordListActivity : ComponentActivity() {
     }
     
     private fun playVideo(record: VideoRecord) {
-        // 创建播放器意图
-        val intent = VideoPlayerActivity.createIntent(
-            this,
-            record.path,
-            if (isCompleted) 0 else record.position,  // 已完成的从头开始播放
-            serverIp
-        )
-        startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+
+        if (record.path.startsWith("smb://")) {
+            // 启动VideoPlayerActivity
+            val intent = SmbVideoPlayerActivity.createIntent(this, record.path, if (isCompleted) 0 else record.position, serverIp)
+            startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+        }else{
+            val intent = VideoPlayerActivity.createIntent(this, record.path, if (isCompleted) 0 else record.position, serverIp)
+            startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+        }
     }
     
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

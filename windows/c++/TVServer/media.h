@@ -125,6 +125,7 @@ private:
 
     static bool MainRawThread(Media* This);
     bool MainRawCallback();
+
     static bool VideoDecodeThread(Media* This);
     bool VideoDecodeCallback();
     static bool AudioDecodeThread(Media* This);

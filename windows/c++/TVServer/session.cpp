@@ -321,6 +321,16 @@ bool isTsFile(const std::string& path) {
     return (ext == ".ts");
 }
 
+void Session::clear_queue()
+{
+    {
+        std::lock_guard<std::mutex> lock(data_queues.mutex);
+        while (!data_queues.ts_packets.empty()) {
+            data_queues.ts_packets.pop();
+        }
+    }
+}
+
 void Session::control_fun()
 {
     while (true) {
@@ -373,6 +383,7 @@ void Session::control_fun()
                     delete media;
                     media = nullptr;
                 }
+                clear_queue();
             }
             else if (cmd["action"] == "stream") {
                 std::string path = cmd["path"]; //返回的是UTF-8格式
@@ -385,9 +396,10 @@ void Session::control_fun()
                     delete media;
                     media = nullptr;
                 }
+                clear_queue();
                 media = new Media(path, *this);
                 media->Seek(pts);
-                media->Start(raw);
+                media->Start(true);
                 response["status"] = "success";
                 response["message"] = "";
                 response["duration"] = media->Duration();
@@ -409,9 +421,10 @@ void Session::control_fun()
                     delete media;
                     media = nullptr;
                 }
+                clear_queue();
                 media = new Media(path, *this);
                 media->Seek(pts);
-                media->Start(raw);
+                media->Start(true);
                 response["status"] = "success";
                 response["message"] = "";
                 response["duration"] = media->Duration();
@@ -435,6 +448,7 @@ void Session::control_fun()
 
                     // 构建 ffmpeg 命令
                     std::string ffmpegCommand = "ffmpeg -y -re -i \"" + pathgb2312 + "\" -c:v libx264 -preset slow -tune film -crf 23 -bufsize 6M -maxrate 5M -b:v 2M -c:a aac -b:a 160k -f mpegts \"" + outputPath + "\"";
+                    //std::string ffmpegCommand = "ffmpeg -y -i \"" + pathgb2312 + "\" -c copy -f mpegts \"" + outputPath + "\"";
 
                     STARTUPINFO si = { sizeof(si) };
                     PROCESS_INFORMATION pi;

@@ -664,17 +664,23 @@ bool Media::MainRawCallback()
     }
     output_ctx->pb = avio_ctx;
 
+    AVStream* streams[20];
+    memset(streams, 0, sizeof(streams));
+
     //直接复制所有流
-    for (unsigned int i = 0; i < input_fmt_ctx->nb_streams; i++) {
+    for (unsigned int i = 0; i < input_fmt_ctx->nb_streams && i < 20; i++) {
         AVStream* in_stream = input_fmt_ctx->streams[i];
         AVStream* out_stream = avformat_new_stream(output_ctx, nullptr);
         if (!out_stream) {
-            std::cerr << "Failed allocating output stream" << std::endl;
-            return false;
+            std::cerr << "Failed allocating output stream:" << i << std::endl;
+            //return false;
+            continue;
         }
+        streams[i] = out_stream;
         if (avcodec_parameters_copy(out_stream->codecpar, in_stream->codecpar) < 0) {
-            std::cerr << "Failed to copy codec parameters" << std::endl;
-            return false;
+            std::cerr << "Failed to copy codec parameters:" << i << std::endl;
+            //return false;
+            continue;
         }
         out_stream->time_base = in_stream->time_base;
     }
@@ -726,18 +732,20 @@ bool Media::MainRawCallback()
 
         //不转码直接输出
         AVStream* in_stream = input_fmt_ctx->streams[encoded_packet->stream_index];
-        AVStream* out_stream = input_fmt_ctx->streams[encoded_packet->stream_index];
+        AVStream* out_stream = streams[encoded_packet->stream_index];
+        if (nullptr != out_stream)
+        {
+            encoded_packet->pts = av_rescale_q_rnd(encoded_packet->pts, in_stream->time_base, out_stream->time_base,
+                static_cast<AVRounding>(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
+            encoded_packet->dts = av_rescale_q_rnd(encoded_packet->dts, in_stream->time_base, out_stream->time_base,
+                static_cast<AVRounding>(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
+            encoded_packet->duration = av_rescale_q(encoded_packet->duration, in_stream->time_base, out_stream->time_base);
+            encoded_packet->pos = -1;
 
-        encoded_packet->pts = av_rescale_q_rnd(encoded_packet->pts, in_stream->time_base, out_stream->time_base,
-            static_cast<AVRounding>(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
-        encoded_packet->dts = av_rescale_q_rnd(encoded_packet->dts, in_stream->time_base, out_stream->time_base,
-            static_cast<AVRounding>(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
-        encoded_packet->duration = av_rescale_q(encoded_packet->duration, in_stream->time_base, out_stream->time_base);
-        encoded_packet->pos = -1;
-
-        if (av_interleaved_write_frame(output_ctx, encoded_packet) < 0) {
-            std::cerr << "Error muxing packet" << std::endl;
-            break;
+            if (av_interleaved_write_frame(output_ctx, encoded_packet) < 0) {
+                std::cerr << "Error muxing packet" << std::endl;
+                break;
+            }
         }
         session.run_status.read_packet_count++;
         av_packet_unref(encoded_packet);
@@ -1246,8 +1254,11 @@ bool Media::MainPipeCallback()
     std::string pathgb2312 = UTF8ToGB2312(path_file);
 
     // 构建 ffmpeg 命令
-    std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string((uint32_t)seek_target_ / 1000000) + " -i \"" + pathgb2312 + "\" -c:v libx264 -preset faster -tune fastdecode -maxrate 1.5M -b:v 1.5M -c:a aac -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
- 
+    //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string((uint32_t)seek_target_ / 1000000) + " -i \"" + pathgb2312 + "\" -c:v libx264 -preset faster -tune fastdecode -maxrate 1.5M -b:v 1.5M -c:a aac -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+    std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string((uint32_t)seek_target_ / 1000000) + " -i \"" + pathgb2312 + "\" -c copy -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+
+    std::cout << ffmpegCommand << std::endl;
+
     SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), NULL, TRUE };
     HANDLE hReadPipe, hWritePipe;
 

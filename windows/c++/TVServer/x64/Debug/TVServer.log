@@ -1,2 +1,5 @@
-﻿  session.cpp
+﻿  TVServer.cpp
+  media.cpp
+  session.cpp
+  正在生成代码...
   TVServer.vcxproj -> J:\tv\windows\c++\TVServer\x64\Debug\TVServer.exe

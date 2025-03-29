@@ -71,6 +71,8 @@ class VideoPlayerActivity : ComponentActivity() {
     private var currentPlaybackPosition: Long = 0
     private var videoDuration: Long = 0
     private var isSeekMode: Boolean = false
+
+    private var isfinish = false;
     
     // 重试相关变量
     private var retryPlaybackCount = 0
@@ -86,7 +88,7 @@ class VideoPlayerActivity : ComponentActivity() {
     // 截图相关
     private var screenshotHandler = Handler(Looper.getMainLooper())
     private var screenshotRunnable: Runnable? = null
-    private val FIRST_SCREENSHOT_DELAY = 1000L // 1秒后进行第一次截图
+    private val FIRST_SCREENSHOT_DELAY = 10000L // 10秒后进行第一次截图
     private val SCREENSHOT_INTERVAL = 60000L // 60秒，即1分钟截图一次
     private var isFirstScreenshot = true // 标记是否为当前视频的第一次截图
     
@@ -125,12 +127,15 @@ class VideoPlayerActivity : ComponentActivity() {
 
     private val retryRunnable = object : Runnable {
         override fun run() {
+            if (isfinish){
+                return;
+            }
             if (null == player || player?.currentPosition == 0L || player?.bufferedPosition == 0L) {
                 // 初始化播放器
                 setupPlayer()
                 // 开始播放
                 playVideo(currentVideoPath, startPosition)
-                handler.postDelayed(this, 5000)
+                handler.postDelayed(this, 10000)
             }
         }
     }
@@ -671,7 +676,7 @@ class VideoPlayerActivity : ComponentActivity() {
             // 2. 创建 MediaSource
             val mediaItem = MediaItem.Builder()
                 .setUri("tcp://stream")
-                .setMimeType(MimeTypes.VIDEO_MP4) // 或者使用适当的 MIME 类型
+                //.setMimeType(MimeTypes.VIDEO_MP4) // 或者使用适当的 MIME 类型
                 .build()
 
             val mediaSourceFactory = DefaultMediaSourceFactory(this)
@@ -1033,5 +1038,7 @@ class VideoPlayerActivity : ComponentActivity() {
         instance = null
 
         handler.removeCallbacks(updateTimeRunnable)
+
+        isfinish = true;
     }
 } 

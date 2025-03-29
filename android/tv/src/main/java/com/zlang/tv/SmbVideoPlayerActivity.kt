@@ -3,6 +3,11 @@ package com.zlang.tv
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.media.MediaCodec
+import android.media.MediaDataSource
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMuxer
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -16,6 +21,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.BaseDataSource
@@ -41,13 +47,19 @@ import jcifs.smb.SmbException
 import jcifs.smb.SmbFile
 import jcifs.smb.SmbFileInputStream
 import org.json.JSONObject
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
+import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.thread
 
 class SmbVideoPlayerActivity : ComponentActivity() {
     companion object {
@@ -70,13 +82,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
     
     // UI组件
     private lateinit var playerView: PlayerView
-    private lateinit var controlsOverlay: LinearLayout
-    private lateinit var videoSeekBar: SeekBar
-    private lateinit var currentTimeText: TextView
-    private lateinit var totalTimeText: TextView
-    private lateinit var playPauseText: TextView
-    private lateinit var rewindText: TextView
-    private lateinit var forwardText: TextView
+
     
     // 播放器状态
     var player: ExoPlayer? = null
@@ -131,6 +137,8 @@ class SmbVideoPlayerActivity : ComponentActivity() {
         }
     }
 
+    private var isfinish = false;
+
     private fun updateTime() {
         val dateFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
         val currentTime = dateFormat.format(Date())
@@ -139,6 +147,9 @@ class SmbVideoPlayerActivity : ComponentActivity() {
 
     private val retryRunnable = object : Runnable {
         override fun run() {
+            if (isfinish){
+                return;
+            }
             if (null == player || player?.currentPosition == 0L || player?.bufferedPosition == 0L) {
                 // 初始化播放器
                 setupPlayer()
@@ -218,13 +229,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
 
     private fun initializeViews() {
         playerView = findViewById(R.id.playerView)
-        controlsOverlay = findViewById(R.id.controlsOverlay)
-        videoSeekBar = findViewById(R.id.videoSeekBar)
-        currentTimeText = findViewById(R.id.currentTimeText)
-        totalTimeText = findViewById(R.id.totalTimeText)
-        playPauseText = findViewById(R.id.playPauseText)
-        rewindText = findViewById(R.id.rewindText)
-        forwardText = findViewById(R.id.forwardText)
+
         
         // 设置播放器相关
         playerView.keepScreenOn = true
@@ -356,10 +361,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
 
 
 
-    private fun updatePlayPauseText() {
-        playPauseText.text = if (player?.playWhenReady == true) "暂停" else "播放"
-    }
-    
+
 
     private fun setupProgressUpdate() {
 
@@ -399,10 +401,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
         }
     }
     
-    private fun updateTimeText(current: Long, total: Long) {
-        currentTimeText.text = formatTime(current)
-        totalTimeText.text = formatTime(total)
-    }
+
     
     private fun formatTime(timeMs: Long): String {
         val totalSeconds = timeMs / 1000
@@ -422,14 +421,237 @@ class SmbVideoPlayerActivity : ComponentActivity() {
         return millis / 1000.0
     }
 
+
+    class StreamToMPEGTSConverter() {
+
+        private val maxBufferSize: Int = 188 * 1024 * 128
+        private val lock = ReentrantLock()
+        private val condition = lock.newCondition()
+        private val byteArrayOutputStream = ByteArrayOutputStream()
+        private var isRunning = true
+        private var conversionThread: Thread? = null
+        private var seek: Long = 0L
+        var filesize:Long = 0L
+
+        fun startConvert(inputStream: InputStream, seek: Long)
+        {
+            this.seek = seek
+            close()
+            // 启动转换线程
+            conversionThread = thread(start = true) { convert(inputStream) }
+        }
+
+        class InputStreamMediaDataSource(private val inputStream: InputStream, private val filesize:Long) : MediaDataSource() {
+            private val buffer = ByteArray(1024 * 1024) // 1MB buffer
+
+            override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
+                inputStream.skip(position)
+                val bytesRead = inputStream.read(buffer, offset, size)
+                return if (bytesRead == -1) {
+                    -1
+                } else {
+                    bytesRead
+                }
+            }
+
+            override fun getSize(): Long {
+                return filesize
+            }
+
+            override fun close() {
+                inputStream.close()
+            }
+        }
+
+        @Throws(IOException::class)
+        private fun convertToMPEGTS(inputStream: InputStream) {
+
+            val dataSource = InputStreamMediaDataSource(inputStream, filesize)
+            val extractor = MediaExtractor()
+            try {
+                extractor.setDataSource(dataSource)
+                // 继续处理 extractor，例如获取轨道信息等
+            } catch (e: IOException) {
+                e.printStackTrace()
+            }
+
+            val videoTracks = mutableListOf<Int>()
+            val audioTracks = mutableListOf<Int>()
+            val subtitleTracks = mutableListOf<Int>()
+
+            val trackCount = extractor.trackCount
+            for (i in 0 until trackCount) {
+                val format = extractor.getTrackFormat(i)
+                val mime = format.getString(MediaFormat.KEY_MIME)
+                when {
+                    mime?.startsWith("video/") == true -> videoTracks.add(i)
+                    mime?.startsWith("audio/") == true -> audioTracks.add(i)
+                    mime?.startsWith("application/") == true -> subtitleTracks.add(i) // 假设字幕轨道以 application/ 开头
+                }
+            }
+
+            if (videoTracks.isEmpty() || audioTracks.isEmpty()) {
+                throw IOException("No video or audio track found in the input stream.")
+            }
+
+            val muxer = MediaMuxer(byteArrayOutputStream.toString(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+
+            val videoTrackIndices = videoTracks.map { extractor.getTrackFormat(it) }
+                .map { muxer.addTrack(it) }
+
+            val audioTrackIndices = audioTracks.map { extractor.getTrackFormat(it) }
+                .map { muxer.addTrack(it) }
+
+            val subtitleTrackIndices = subtitleTracks.map { extractor.getTrackFormat(it) }
+                .map { muxer.addTrack(it) }
+
+            muxer.start()
+
+            val buffer = ByteBuffer.allocate(1024 * 1024) // 1MB buffer
+            val bufferInfo = MediaCodec.BufferInfo()
+
+            if (seek > 0L)
+            {
+                extractor.seekTo(seek, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
+            }
+
+            while (isRunning) {
+                var processed = false
+
+                for (i in videoTracks) {
+                    if (extractor.sampleTrackIndex == i) {
+                        val sampleSize = extractor.readSampleData(buffer, 0)
+                        if (sampleSize < 0) continue
+                        bufferInfo.offset = 0
+                        bufferInfo.size = sampleSize
+                        bufferInfo.presentationTimeUs = extractor.sampleTime
+                        bufferInfo.flags = extractor.sampleFlags
+
+                        // 检查缓冲区的大小，超过最大缓冲区时，暂停转换线程
+                        lock.lock()
+                        try {
+                            if (byteArrayOutputStream.size() > maxBufferSize) {
+                                condition.await()
+                            }
+
+                            muxer.writeSampleData(videoTrackIndices[videoTracks.indexOf(i)], buffer, bufferInfo)
+                            byteArrayOutputStream.write(buffer.array(), bufferInfo.offset, bufferInfo.size)  // Save data to output stream
+                            extractor.advance()
+                            processed = true
+                        } finally {
+                            lock.unlock()
+                        }
+
+                    }
+                }
+
+                for (i in audioTracks) {
+                    if (extractor.sampleTrackIndex == i) {
+                        val sampleSize = extractor.readSampleData(buffer, 0)
+                        if (sampleSize < 0) continue
+                        bufferInfo.offset = 0
+                        bufferInfo.size = sampleSize
+                        bufferInfo.presentationTimeUs = extractor.sampleTime
+                        bufferInfo.flags = extractor.sampleFlags
+
+                        lock.lock()
+                        try {
+                            if (byteArrayOutputStream.size() > maxBufferSize) {
+                                condition.await()
+                            }
+
+                            muxer.writeSampleData(audioTrackIndices[audioTracks.indexOf(i)], buffer, bufferInfo)
+                            byteArrayOutputStream.write(buffer.array(), bufferInfo.offset, bufferInfo.size)  // Save data to output stream
+                            extractor.advance()
+                            processed = true
+                        } finally {
+                            lock.unlock()
+                        }
+                    }
+                }
+
+                for (i in subtitleTracks) {
+                    if (extractor.sampleTrackIndex == i) {
+                        val sampleSize = extractor.readSampleData(buffer, 0)
+                        if (sampleSize < 0) continue
+                        bufferInfo.offset = 0
+                        bufferInfo.size = sampleSize
+                        bufferInfo.presentationTimeUs = extractor.sampleTime
+                        bufferInfo.flags = extractor.sampleFlags
+
+                        lock.lock()
+                        try {
+                            if (byteArrayOutputStream.size() > maxBufferSize) {
+                                condition.await()
+                            }
+
+                            muxer.writeSampleData(subtitleTrackIndices[subtitleTracks.indexOf(i)], buffer, bufferInfo)
+                            byteArrayOutputStream.write(buffer.array(), bufferInfo.offset, bufferInfo.size)  // Save data to output stream
+                            extractor.advance()
+                            processed = true
+                        } finally {
+                            lock.unlock()
+                        }
+                    }
+                }
+
+                if (!processed) break
+            }
+
+            muxer.stop()
+            muxer.release()
+            extractor.release()
+
+        }
+
+        // 读取方法，每次读取指定长度的数据
+        fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            lock.lock()
+            try {
+                val data = byteArrayOutputStream.toByteArray()
+                val bytesToRead = minOf(length, data.size - offset)
+
+                if (bytesToRead > 0) {
+                    System.arraycopy(data, 0, buffer, offset, bytesToRead)
+                    byteArrayOutputStream.reset()
+                    byteArrayOutputStream.write(data, bytesToRead, data.size - bytesToRead)
+                    condition.signalAll() // 唤醒任何等待的线程
+                    return bytesToRead
+                }
+                return 0 // No data to read
+            } finally {
+                lock.unlock()
+            }
+        }
+
+        // 关闭方法，停止转换线程并清理资源
+        fun close() {
+            isRunning = false
+            lock.lock()
+            try {
+                condition.signalAll() // 唤醒任何等待的线程
+            } finally {
+                lock.unlock()
+            }
+            conversionThread?.join() // 等待转换线程结束
+        }
+
+        private fun convert(inputStream: InputStream) {
+            // 这里添加转换的具体逻辑
+            // 在 convertToMPEGTS 函数中已实现，转换线程会持续运行直到 isRunning 为 false
+            convertToMPEGTS(inputStream)
+        }
+    }
+
+
     class SmbDataSource : BaseDataSource(false) {
         private var inputStream: SmbFileInputStream? = null
 
         private var smbFile: SmbFile? = null
         private var fileSize: Long = 0
         private var currentPosition: Long = 0  // 记录当前读取位置
-        private var bytesRemaining: Long = 0
         private var uri : String = ""
+        private val convert = StreamToMPEGTSConverter()
 
         private fun createCifsContext(): CIFSContext {
             val props = java.util.Properties().apply {
@@ -469,65 +691,44 @@ class SmbVideoPlayerActivity : ComponentActivity() {
                 Log.e("SambaError", "读取文件时发生 I/O 错误: ${e.message}", e)
             } catch (e: Exception) {
                 Log.e("SambaError", "发生未知错误: ${e.message}", e)
-            } finally {
-                try {
-                    inputStream?.close()
-                    inputStream = null
-                } catch (e: IOException) {
-                    Log.e("SambaError", "关闭流时发生错误: ${e.message}", e)
-                }
             }
 
             // 跳转到指定位置
             if (dataSpec.position > 0) {
                 var bytesToSkip = dataSpec.position
-                while (bytesToSkip > 0) {
-                    val skipped = inputStream!!.skip(bytesToSkip)
-                    if (skipped <= 0) {
-                        throw IOException("Failed to skip bytes in SMB file")
-                    }
-                    bytesToSkip -= skipped
-                }
+                inputStream?.skip(bytesToSkip)
             }
             currentPosition = dataSpec.position  // 初始化当前位置
-
-            bytesRemaining = if(dataSpec.length == C.LENGTH_UNSET.toLong()) {
-                smbFile?.length() ?: 0L - dataSpec.position
-            }else{ dataSpec.length }
             fileSize = smbFile?.length()?:0L
+
+            convert.filesize = fileSize
+
+            val _is = inputStream
+            if (null != _is) {
+                //convert.startConvert(_is, dataSpec.position)
+            }
+
             return fileSize
         }
 
         override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-            if (bytesRemaining == 0L || null == inputStream) {
-                return C.RESULT_END_OF_INPUT
-            }
 
-            // 安全转换 Long 到 Int
-            val maxRead = when {
-                bytesRemaining == C.LENGTH_UNSET.toLong() -> length
-                bytesRemaining > Int.MAX_VALUE -> Int.MAX_VALUE
-                else -> bytesRemaining.toInt()
-            }
-            val bytesToRead = minOf(length, maxRead)
+            //Log.d("SmbVideoPlayerActivity", "player read:" + offset + ", " + length)
 
             val bytesRead = try {
-                inputStream!!.read(buffer, offset, bytesToRead)
+                inputStream?.read(buffer, offset, length)
+                //convert.read(buffer, offset, length)
             } catch (e: Exception) {
                 throw IOException("Read failed: ${e.message}", e)
             }
 
             if (bytesRead == -1) {
-                if (bytesRemaining != C.LENGTH_UNSET.toLong()) {
-                    throw IOException("Unexpected end of stream")
-                }
                 return C.RESULT_END_OF_INPUT
             }
 
-            if (bytesRemaining != C.LENGTH_UNSET.toLong()) {
-                bytesRemaining -= bytesRead
-            }
-            return bytesRead
+            //Log.d("SmbVideoPlayerActivity", "player read bytesRead:" + bytesRead)
+
+            return bytesRead?:0
         }
 
         override fun getUri() : Uri{
@@ -539,6 +740,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
             smbFile?.close()
             inputStream = null
             smbFile = null
+            convert.close()
         }
     }
 
@@ -555,33 +757,33 @@ class SmbVideoPlayerActivity : ComponentActivity() {
             val dataSourceFactory = SmbDataSourceFactory()
             // 构建 SMB URL（格式：smb://user:password@192.168.1.100/share/video.mp4）
             val smbUri = Uri.parse(currentVideoPath)
-            val mediaItem = MediaItem.fromUri(smbUri)
+            val mediaItem = MediaItem.Builder()
+                .setUri(smbUri)
+                //.setMimeType(MimeTypes.VIDEO_MP4) // 或者使用适当的 MIME 类型
+                .build()
 
 
             val mediaSourceFactory = DefaultMediaSourceFactory(this)
                 .setDataSourceFactory(dataSourceFactory)
 
-            player?.setMediaSource(mediaSourceFactory.createMediaSource(mediaItem))
-            player?.prepare()
-            player?.play()
+            val mediaSource = mediaSourceFactory.createMediaSource(mediaItem)
+
+            player?.apply {
+                setMediaSource(mediaSource)
+                prepare()
+                playWhenReady = true
+            }
+
             if (startPosition > 0)
             {
                 player?.seekTo(startPosition)
             }
 
-            // 将焦点设置到activity上，确保能接收按键事件
-            this.window.decorView.rootView.clearFocus()
-            Log.d("PlayVideo", "启动播放时已将焦点设置到Activity上")
 
-            // 更新UI
-            updatePlayPauseText()
 
             // 开始截图计时
             startScreenshotTimer()
 
-            // 将焦点设置到Activity上，确保能接收按键事件
-            this.window.decorView.rootView.clearFocus()
-            Log.d(TAG, "已将焦点设置到Activity上")
 
 
         } catch (e: Exception) {
@@ -611,9 +813,6 @@ class SmbVideoPlayerActivity : ComponentActivity() {
                             setupPlayer()
                             startPlaying()
 
-                            // 将焦点设置到activity上，确保能接收按键事件
-                            this.window.decorView.rootView.clearFocus()
-                            Log.d("PlayVideo", "从指定位置播放时已将焦点设置到Activity上")
                         }
                 } catch (e: Exception) {
                     Log.e("PlayVideo", "视频定位出错", e)
@@ -879,5 +1078,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
         instance = null
 
         handler.removeCallbacks(updateTimeRunnable)
+
+        isfinish = true;
     }
 } 

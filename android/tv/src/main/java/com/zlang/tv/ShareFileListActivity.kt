@@ -489,10 +489,30 @@ class ShareFileListActivity : ComponentActivity() {
                 if (isVideoFile(item.path)) {
                     //SMB URL（格式：smb://username:password@host/share/path/file.mp4）
                     val path = item.path
-                    //打开播放器
-                    val intent = SmbVideoPlayerActivity.createIntent(this, path,
-                        0, serverIp)
-                    startActivity(intent)
+
+                    // 检查是否有播放记录
+                    val record = unfinishedRecords.find { it.path == item.path }
+                    if (record != null) {
+                        if (record.isCompleted()) {
+                            // 如果已经播放完成，从头开始播放
+                            //打开播放器
+                            val intent = SmbVideoPlayerActivity.createIntent(this, path,
+                                0, serverIp)
+                            startActivity(intent)
+                        } else {
+                            // 从上次播放位置继续播放
+                            //打开播放器
+                            val intent = SmbVideoPlayerActivity.createIntent(this, path,
+                                record.position, serverIp)
+                            startActivity(intent)
+                        }
+                    } else {
+                        // 没有播放记录，从头开始播放
+                        val intent = SmbVideoPlayerActivity.createIntent(this, path,
+                            0, serverIp)
+                        startActivity(intent)
+                    }
+
 
                 }
                 else if (item.path.lowercase().endsWith(".apk"))

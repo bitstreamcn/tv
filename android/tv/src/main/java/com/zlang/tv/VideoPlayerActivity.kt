@@ -288,7 +288,7 @@ class VideoPlayerActivity : ComponentActivity() {
             playerView.setControllerHideOnTouch(false)
             playerView.setControllerAutoShow(false)
 
-            player?.repeatMode = Player.REPEAT_MODE_ONE
+            player?.repeatMode = Player.REPEAT_MODE_OFF
 
         } catch (e: Exception) {
             Log.e(TAG, "Error setting up player", e)
@@ -799,7 +799,9 @@ class VideoPlayerActivity : ComponentActivity() {
 
             // 根据是否是当前视频的第一次截图设置不同的延迟
             val delay = if (isFirstScreenshot) {
-                isFirstScreenshot = false // 设置为非第一次
+                if (player?.isPlaying?:false) {
+                    isFirstScreenshot = false // 设置为非第一次
+                }
                 FIRST_SCREENSHOT_DELAY // 1秒后进行第一次截图
             } else {
                 SCREENSHOT_INTERVAL // 后续每60秒截图一次

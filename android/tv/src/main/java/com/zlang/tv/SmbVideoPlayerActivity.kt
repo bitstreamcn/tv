@@ -282,7 +282,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
             // 禁用所有按键事件
             playerView.setUseController(true)  // 确保控制器不响应按键
 
-            player?.repeatMode = Player.REPEAT_MODE_ONE
+            player?.repeatMode = Player.REPEAT_MODE_OFF
 
         } catch (e: Exception) {
             Log.e(TAG, "Error setting up player", e)
@@ -758,14 +758,9 @@ class SmbVideoPlayerActivity : ComponentActivity() {
             player?.apply {
                 setMediaSource(mediaSource)
                 prepare()
+                seekTo(startPosition)
                 playWhenReady = true
             }
-
-            if (startPosition > 0)
-            {
-                player?.seekTo(startPosition)
-            }
-
 
 
             // 开始截图计时
@@ -822,7 +817,9 @@ class SmbVideoPlayerActivity : ComponentActivity() {
 
             // 根据是否是当前视频的第一次截图设置不同的延迟
             val delay = if (isFirstScreenshot) {
-                isFirstScreenshot = false // 设置为非第一次
+                if (player?.isPlaying?:false) {
+                    isFirstScreenshot = false // 设置为非第一次
+                }
                 FIRST_SCREENSHOT_DELAY // 1秒后进行第一次截图
             } else {
                 SCREENSHOT_INTERVAL // 后续每60秒截图一次
@@ -983,7 +980,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
         try {
             if (videoPath.isEmpty()) return
             
-            MainActivity.instance?.updatePlayRecord(videoPath, position, player?.duration?:0)
+            MainActivity.instance?.updatePlayRecord(videoPath, player?.currentPosition?:0, player?.duration?:0)
         } catch (e: Exception) {
             Log.e(TAG, "保存播放记录时出错", e)
         }
@@ -1025,6 +1022,8 @@ class SmbVideoPlayerActivity : ComponentActivity() {
     
     override fun onResume() {
         super.onResume()
+
+        playerView.requestFocus() // 确保可以接收按键事件
         // 如果已经初始化了播放器，则恢复播放
         if (player != null && currentVideoPath.isNotEmpty()) {
             // 恢复播放
@@ -1098,10 +1097,23 @@ class SmbVideoPlayerActivity : ComponentActivity() {
             }
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
                 Log.d("KeyEvent", "处理左右键: ${if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) "左" else "右"}")
-
+                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                    player?.let {
+                        val newPos = it.currentPosition - 5000
+                        it.seekTo(newPos.coerceAtLeast(0))
+                    }
+                }else{
+                    player?.let {
+                        val newPos = it.currentPosition + 5000
+                        it.seekTo(newPos.coerceAtMost(it.duration))
+                    }
+                }
+                playerView.showController() // 强制显示控制器
+                playerView.controllerAutoShow = true // 确保自动隐藏机制生效
                 // 立即显示进度条
                 if (!isSeekMode) {
                     Log.d("KeyEvent", "显示进度条")
+
                 } else {
                     // 如果已经显示，则重置自动隐藏定时器
                     resetAutoHideTimer()

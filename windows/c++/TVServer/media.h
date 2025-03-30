@@ -5,7 +5,7 @@
 
 
 #include <iostream>
-
+#include <fstream>
 #include <cstdint>
 #include <vector>
 #include <winsock2.h>
@@ -126,6 +126,9 @@ private:
     static bool MainRawThread(Media* This);
     bool MainRawCallback();
 
+    static bool MainFileThread(Media* This);
+    bool MainFileCallback();
+
     static bool VideoDecodeThread(Media* This);
     bool VideoDecodeCallback();
     static bool AudioDecodeThread(Media* This);
@@ -194,4 +197,6 @@ private:
 
     volatile int64_t video_last_pts = AV_NOPTS_VALUE;
     volatile int64_t audio_last_pts = AV_NOPTS_VALUE;
+
+    std::ifstream file;
 };

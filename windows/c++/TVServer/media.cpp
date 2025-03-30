@@ -1,8 +1,7 @@
 #include "media.h"
 #include "encode.h"
 
-#include <iostream>
-#include <fstream>
+
 #include <stdio.h>
 #include <inttypes.h>
 #include "session.h"
@@ -641,6 +640,12 @@ bool Media::MainRawThread(Media* This)
     return This->MainRawCallback();
 }
 
+
+bool Media::MainFileThread(Media* This)
+{
+    return This->MainFileCallback();
+}
+
 bool Media::MainRawCallback()
 {
     if (nullptr == input_fmt_ctx)
@@ -757,6 +762,66 @@ bool Media::MainRawCallback()
     // 收尾工作
     av_write_trailer(output_ctx);
     av_packet_free(&encoded_packet);
+    return true;
+}
+
+bool Media::MainFileCallback()
+{
+    std::string pathgb2312 = UTF8ToGB2312(path_file);
+    std::cout << "打开文件：" << pathgb2312  << std::endl;
+    // 以二进制模式打开文件
+    file = std::ifstream(pathgb2312, std::ios::binary | std::ios::ate);
+    if (!file.is_open()) {
+        std::cerr << "无法打开文件: " << pathgb2312 << std::endl;
+        return false;
+    }
+
+    // 获取文件大小
+    std::streamsize filesize = file.tellg();
+    file.seekg(0, std::ios::beg); // 重置文件指针到文件开头
+
+    std::cout << "filesize：" << filesize << std::endl;
+
+    // 创建一个缓冲区来存储文件内容
+    std::vector<char> buffer(DEC_BUFF_SIZE);
+
+    if (seek_target_ > 0 && seek_target_ < filesize) {
+        file.seekg(seek_target_, std::ios::beg);
+        std::cout << "seekg：" << seek_target_ << std::endl;
+        seek_target_ = 0;
+    }
+
+    // 发送数据
+    std::streamsize sent = 0;
+    bool haserr = false;
+    stop_flag = false;
+    while (!stop_flag && sent < filesize)
+    {
+        bool pause = false;
+        //检查队列，如果队列数据太多，暂停解码
+        {
+            std::lock_guard<std::mutex> lock(session.data_queues.mutex);
+            if (session.data_queues.ts_packets.size() >= MAX_QUEUE_SIZE)
+            {
+                session.data_queues.cv.notify_all();
+                pause = true;
+            }
+        }
+        if (pause)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(1)));
+            continue;
+        }
+        // 读取文件内容到缓冲区
+        if (!file.read(buffer.data(), buffer.size())) {
+            std::cerr << "读取文件失败: " << pathgb2312 << std::endl;
+            break;
+        }
+        write_packet((uint8_t*)buffer.data(), (int)file.gcount());
+        sent += file.gcount();
+    }
+    // 关闭文件
+    file.close();
     return true;
 }
 
@@ -1422,7 +1487,8 @@ bool Media::Start(bool rawdata)
     }
     if (rawdata)
     {
-        main_thread = std::thread(Media::MainRawThread, this);
+        //main_thread = std::thread(Media::MainRawThread, this);
+        main_thread = std::thread(Media::MainFileThread, this);
     }
     else
     {
@@ -1489,11 +1555,14 @@ bool Media::Seek(double seconds)
     AVStream* in_stream = input_fmt_ctx->streams[audio_idx];
     seek_target_ = seconds / av_q2d(in_stream->time_base);
     */
-    seek_target_ = (int64_t)(seconds * AV_TIME_BASE);
+    //seek_target_ = (int64_t)(seconds * AV_TIME_BASE);
+    seek_target_ = seconds;
 
     //video_start_time = AV_NOPTS_VALUE;
     //audio_start_time = seek_target_;
     //seek_requested_ = true;
+
+
     return true;
 }
 

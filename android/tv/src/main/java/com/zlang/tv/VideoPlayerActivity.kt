@@ -57,13 +57,7 @@ class VideoPlayerActivity : ComponentActivity() {
     
     // UI组件
     private lateinit var playerView: PlayerView
-    private lateinit var controlsOverlay: LinearLayout
-    private lateinit var videoSeekBar: SeekBar
-    private lateinit var currentTimeText: TextView
-    private lateinit var totalTimeText: TextView
-    private lateinit var playPauseText: TextView
-    private lateinit var rewindText: TextView
-    private lateinit var forwardText: TextView
+
     
     // 播放器状态
     var player: ExoPlayer? = null
@@ -192,43 +186,16 @@ class VideoPlayerActivity : ComponentActivity() {
         handler.postDelayed(retryRunnable, 5000)
     }
 
-    private fun stopVideoStream() {
 
-        val command = JSONObject().apply {
-            put("action", "stop_stream")
-        }
-
-        Thread {
-            try {
-                val commandStr = command.toString()
-                Log.d("ServerComm", "发送数据: $commandStr")
-                //writer?.println(commandStr)
-                //val response = reader?.readLine()
-                val response = TcpControlClient.sendTlv(commandStr)
-
-                Log.d("ServerComm", "接收数据: $response")
-
-                if (response == null) {
-                    return@Thread
-                }
-            } catch (e: Exception) {
-                Log.e("VideoPlayerActivity", "Error stopping video stream", e)
-            }
-        }.start()
-    }
     
     private fun initializeViews() {
         playerView = findViewById(R.id.playerView)
-        controlsOverlay = findViewById(R.id.controlsOverlay)
-        videoSeekBar = findViewById(R.id.videoSeekBar)
-        currentTimeText = findViewById(R.id.currentTimeText)
-        totalTimeText = findViewById(R.id.totalTimeText)
-        playPauseText = findViewById(R.id.playPauseText)
-        rewindText = findViewById(R.id.rewindText)
-        forwardText = findViewById(R.id.forwardText)
-        
+
+
         // 设置播放器相关
         playerView.keepScreenOn = true
+
+        playerView.requestFocus()
         
         // 初始化自动隐藏Runnable
         autoHideRunnable = Runnable { hideProgressBar() }
@@ -274,20 +241,6 @@ class VideoPlayerActivity : ComponentActivity() {
                 
             playerView.player = player
 
-            // 配置播放器参数
-            playerView.useController = false // 禁用默认控制器
-            // 禁用所有按键事件
-            playerView.setUseController(false)  // 确保控制器不响应按键
-            // 禁用进度条显示
-            playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
-            playerView.setShowNextButton(false)
-            playerView.setShowPreviousButton(false)
-            playerView.setShowFastForwardButton(false)
-            playerView.setShowRewindButton(false)
-            // 禁用按键显示进度条
-            playerView.setControllerHideOnTouch(false)
-            playerView.setControllerAutoShow(false)
-
             player?.repeatMode = Player.REPEAT_MODE_OFF
 
         } catch (e: Exception) {
@@ -308,6 +261,7 @@ class VideoPlayerActivity : ComponentActivity() {
                 }
                 else -> {
                     Log.d("onPlayerError", "播放出错：${error.message}")
+                    retryPlayback();
                 }
             }
         }
@@ -367,151 +321,26 @@ class VideoPlayerActivity : ComponentActivity() {
         // 隐藏加载提示UI
     }
 
-
-    private fun startVideoFromPosition(position: Long) {
-
-        Log.d("PlayVideo", "调用startVideoFromPosition: position=$position, 视频路径=$currentVideoPath")
-
-        startPosition = position
-        currentPlaybackPosition = position
-        var command = JSONObject().apply {
-            put("action", "stream")
-            put("path", currentVideoPath)
-            put("start_time", formatTimeForServer(position))
-            put("ffmpeg", isFfmpeg)
-        }
-        if (position > 0)
-        {
-            command = JSONObject().apply {
-                put("action", "seek")
-                put("path", currentVideoPath)
-                put("pts", formatTimeForServer(position))
-                put("ffmpeg", isFfmpeg)
-            }
-            //player?.stop()
-        }
-
-        Thread {
-            try {
-                val commandStr = command.toString()
-                Log.d("ServerComm", "发送视频定位请求: $commandStr")
-                val response = TcpControlClient.sendTlv(commandStr)
-                Log.d("ServerComm", "定位请求接收数据: $response")
-
-                if (response == null) {
-                    return@Thread
-                }
-
-                val jsonResponse = response
-
-                if (jsonResponse.getString("status") == "success") {
-                    val durationSeconds = jsonResponse.optDouble("duration", 0.0)
-                    Log.d("ServerComm", "视频时长(秒): $durationSeconds")
-                    // 转换为毫秒
-                    videoDuration = (durationSeconds * 1000).toLong()
-                    // 等待一小段时间让服务器准备好RTSP流
-                    Thread.sleep(500)
-                    runOnUiThread {
-                        Log.d("PlayVideo", "定位请求成功，重新设置播放器")
-                        setupPlayer()
-                        startPlaying()
-
-                        // 将焦点设置到activity上，确保能接收按键事件
-                        this.window.decorView.rootView.clearFocus()
-                        Log.d("PlayVideo", "从指定位置播放时已将焦点设置到Activity上")
-                    }
-                } else {
-                    val errorMessage = jsonResponse.optString("message", "未知错误")
-                    Log.e("PlayVideo", "调整视频位置失败: $errorMessage")
-                    showToast("调整视频位置失败: $errorMessage")
-                }
-            } catch (e: Exception) {
-                Log.e("PlayVideo", "视频定位出错", e)
-                showToast("调整视频位置失败")
-            }
-        }.start()
-    }
     
     private fun setupSeekBar() {
-        videoSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    val position = (progress.toLong() * videoDuration) / 100
-                    updateTimeText(position, videoDuration)
-                }
-            }
 
-            override fun onStartTrackingTouch(seekBar: SeekBar) {
-                // 开始拖动时暂停播放
-                player?.playWhenReady = false
-            }
-
-            override fun onStopTrackingTouch(seekBar: SeekBar) {
-                if (!(player?.playWhenReady?:false))
-                {
-                    player?.playWhenReady = !(player?.playWhenReady ?: false)
-                }
-                else {
-                    val position = (seekBar.progress.toLong() * videoDuration) / 100
-                    startVideoFromPosition(position)
-                }
-            }
-        })
     }
     
     private fun setupControlButtons() {
-        playPauseText.setOnClickListener {
-            player?.playWhenReady = !(player?.playWhenReady ?: false)
-            updatePlayPauseText()
-        }
+
         
-        rewindText.setOnClickListener {
-            handleSeekProgress(false)
-        }
-        
-        forwardText.setOnClickListener {
-            handleSeekProgress(true)
-        }
+
+
     }
     
     private fun updatePlayPauseText() {
-        playPauseText.text = if (player?.playWhenReady == true) "暂停" else "播放"
+
     }
     
-    private fun handleSeekProgress(isForward: Boolean) {
-        val step = if (isLongPress) 15 else 5 // 长按时15秒，短按时5秒
-        val currentProgress = videoSeekBar.progress
-        val newProgress = if (isForward) {
-            Math.min(100, currentProgress + ((step * 1000L * 100) / videoDuration).toInt())
-        } else {
-            Math.max(0, currentProgress - ((step * 1000L * 100) / videoDuration).toInt())
-        }
-        videoSeekBar.progress = newProgress
-        val position = (newProgress.toLong() * videoDuration) / 100
-        updateTimeText(position, videoDuration)
-    }
+
     
     private fun setupProgressUpdate() {
-        progressUpdateHandler = Handler(Looper.getMainLooper())
-        progressUpdateRunnable = object : Runnable {
-            override fun run() {
-                if (!isSeekMode) {
-                    val current = player?.currentPosition
-                    // 只在非进度条模式下更新进度
-                    if (null != current) {
-                        currentPlaybackPosition = (current) + startPosition
-                        if (currentPlaybackPosition <= videoDuration) {
-                            val progress =
-                                ((currentPlaybackPosition.toFloat() / videoDuration) * 100).toInt()
-                            videoSeekBar.progress = progress
-                            updateTimeText(currentPlaybackPosition, videoDuration)
 
-                            progressUpdateHandler?.postDelayed(this, 1000)
-                        }
-                    }
-                }
-            }
-        }
         
         // 初始化定期保存记录的Runnable
         saveRecordRunnable = Runnable {
@@ -538,20 +367,18 @@ class VideoPlayerActivity : ComponentActivity() {
     
     private fun showProgressBar() {
         Log.d("ProgressBar", "显示进度条")
-        controlsOverlay.visibility = View.VISIBLE
+
         isSeekMode = true
-        // 记录当前播放位置
-        currentPlaybackPosition = (videoSeekBar.progress.toLong() * videoDuration) / 100
+
         // 重置自动隐藏定时器
         resetAutoHideTimer()
         
-        // 确保进度条获得焦点以便处理键盘事件
-        videoSeekBar.requestFocus()
+
         Log.d("ProgressBar", "进度条显示时已将焦点设置到进度条上")
     }
     
     private fun hideProgressBar() {
-        controlsOverlay.visibility = View.GONE
+
         isSeekMode = false
         // 安全地取消自动隐藏定时器
         autoHideRunnable?.let { runnable ->
@@ -575,8 +402,7 @@ class VideoPlayerActivity : ComponentActivity() {
     }
     
     private fun updateTimeText(current: Long, total: Long) {
-        currentTimeText.text = formatTime(current)
-        totalTimeText.text = formatTime(total)
+
     }
     
     private fun formatTime(timeMs: Long): String {
@@ -610,18 +436,11 @@ class VideoPlayerActivity : ComponentActivity() {
                     }
                     else {
                         // 确认当前进度并开始播放
-                        val position = (videoSeekBar.progress.toLong() * videoDuration) / 100
-                        startVideoFromPosition(position)
                         hideProgressBar()
                     }
                     return true
                 } else {
-                    // 显示/隐藏进度条
-                    if (controlsOverlay.visibility == View.VISIBLE) {
-                        hideProgressBar()
-                    } else {
-                        showProgressBar()
-                    }
+
                     // 切换播放/暂停状态
                     player?.playWhenReady = !(player?.playWhenReady ?: false)
                     updatePlayPauseText()
@@ -632,28 +451,30 @@ class VideoPlayerActivity : ComponentActivity() {
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
                 Log.d("KeyEvent", "处理左右键: ${if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) "左" else "右"}")
 
+                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                    player?.let {
+                        val newPos = it.currentPosition - 5000
+                        it.seekTo(newPos.coerceAtLeast(0))
+                    }
+                }else{
+                    player?.let {
+                        val newPos = it.currentPosition + 5000
+                        it.seekTo(newPos.coerceAtMost(it.duration))
+                    }
+                }
+                playerView.showController() // 强制显示控制器
+                playerView.controllerAutoShow = true // 确保自动隐藏机制生效
                 // 立即显示进度条
                 if (!isSeekMode) {
                     Log.d("KeyEvent", "显示进度条")
-                    showProgressBar()
+
                 } else {
                     // 如果已经显示，则重置自动隐藏定时器
                     resetAutoHideTimer()
                 }
 
-                // 第一次按下时
-                if (event.repeatCount == 0) {
-                    isLongPress = false
-                    longPressHandler.removeCallbacks(longPressRunnable ?: return super.onKeyDown(keyCode, event))
-                    longPressRunnable = Runnable {
-                        isLongPress = true
-                        Log.d("KeyEvent", "触发长按")
-                    }
-                    longPressHandler.postDelayed(longPressRunnable!!, 500) // 500ms后判定为长按
-                }
 
                 // 处理进度调整
-                handleSeekProgress(keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)
                 return true
             }
         }
@@ -681,7 +502,7 @@ class VideoPlayerActivity : ComponentActivity() {
 
             // 2. 创建 MediaSource
             val mediaItem = MediaItem.Builder()
-                .setUri("tcp://stream")
+                .setUri(currentVideoPath)
                 //.setMimeType(MimeTypes.VIDEO_MP4) // 或者使用适当的 MIME 类型
                 .build()
 
@@ -696,6 +517,7 @@ class VideoPlayerActivity : ComponentActivity() {
                 setMediaSource(mediaSource)
                 prepare()
                 playWhenReady = true
+                seekTo(startPosition)
             }
 
             // 将焦点设置到activity上，确保能接收按键事件
@@ -731,59 +553,15 @@ class VideoPlayerActivity : ComponentActivity() {
             currentVideoPath = path
             this.startPosition = startPosition
 
-            var command = JSONObject().apply {
-                put("action", "stream")
-                put("path", currentVideoPath)
-                put("start_time", formatTimeForServer(startPosition))
-                put("ffmpeg", isFfmpeg)
+            runOnUiThread {
+                Log.d("PlayVideo", "定位请求成功，重新设置播放器")
+                setupPlayer()
+                startPlaying()
+
+                // 将焦点设置到activity上，确保能接收按键事件
+                this.window.decorView.rootView.clearFocus()
+                Log.d("PlayVideo", "从指定位置播放时已将焦点设置到Activity上")
             }
-            if (startPosition > 0)
-            {
-                command = JSONObject().apply {
-                    put("action", "seek")
-                    put("path", currentVideoPath)
-                    put("pts", formatTimeForServer(startPosition))
-                    put("ffmpeg", isFfmpeg)
-                }
-                //player?.stop()
-            }
-
-            Thread {
-                try {
-                    val commandStr = command.toString()
-                    Log.d("ServerComm", "发送视频定位请求: $commandStr")
-                    val response = TcpControlClient.sendTlv(commandStr)
-                    Log.d("ServerComm", "定位请求接收数据: $response")
-
-                    val jsonResponse = response
-
-                    if (jsonResponse.getString("status") == "success") {
-                        val durationSeconds = jsonResponse.optDouble("duration", 0.0)
-                        Log.d("ServerComm", "视频时长(秒): $durationSeconds")
-                        // 转换为毫秒
-                        videoDuration = (durationSeconds * 1000).toLong()
-                        // 等待一小段时间让服务器准备好RTSP流
-                        Thread.sleep(500)
-                        runOnUiThread {
-                            Log.d("PlayVideo", "定位请求成功，重新设置播放器")
-                            setupPlayer()
-                            startPlaying()
-
-                            // 将焦点设置到activity上，确保能接收按键事件
-                            this.window.decorView.rootView.clearFocus()
-                            Log.d("PlayVideo", "从指定位置播放时已将焦点设置到Activity上")
-                        }
-                    } else {
-                        val errorMessage = jsonResponse.optString("message", "未知错误")
-                        Log.e("PlayVideo", "调整视频位置失败: $errorMessage")
-                        showToast("调整视频位置失败: $errorMessage")
-                    }
-                } catch (e: Exception) {
-                    Log.e("PlayVideo", "视频定位出错", e)
-                    showToast("调整视频位置失败")
-                }
-            }.start()
-
 
 
         } catch (e: Exception) {
@@ -962,18 +740,12 @@ class VideoPlayerActivity : ComponentActivity() {
         try {
             if (videoPath.isEmpty()) return
             
-            MainActivity.instance?.updatePlayRecord(videoPath, position, videoDuration)
+            //MainActivity.instance?.updatePlayRecord(videoPath, position, videoDuration)
+            MainActivity.instance?.updatePlayRecord(videoPath, player?.currentPosition?:0, player?.duration?:0)
         } catch (e: Exception) {
             Log.e(TAG, "保存播放记录时出错", e)
         }
     }
-
-
-
-
-
-
-
 
     
     private fun showToast(message: String) {
@@ -1041,9 +813,6 @@ class VideoPlayerActivity : ComponentActivity() {
         progressUpdateRunnable?.let { runnable ->
             progressUpdateHandler?.removeCallbacks(runnable)
         }
-        
-
-        stopVideoStream()
 
         instance = null
 

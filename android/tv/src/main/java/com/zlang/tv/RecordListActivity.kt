@@ -147,28 +147,7 @@ class RecordListActivity : ComponentActivity() {
     }
 
     private fun playVideo(path: String, startPosition: Long = 0) {
-        if (path.endsWith(".ts", true)) {
-
-            // 检查是否有播放记录
-            val record = unfinishedRecords.find { it.path == path }
-            if (record != null) {
-                if (record.isCompleted()) {
-                    // 如果已经播放完成，从头开始播放
-                    playVideo(path, 0, false)
-                } else {
-                    // 从上次播放位置继续播放
-                    playVideo(path, record.position, false)
-                }
-            } else {
-                // 没有播放记录，从头开始播放
-                playVideo(path, 0, false)
-            }
-
-
-        } else {
-            // 其他视频文件显示选项对话框
-            showVideoOptionsDialog(path)
-        }
+        playVideo(path, startPosition, false)
     }
     
     private fun playVideo(record: VideoRecord) {
@@ -183,115 +162,6 @@ class RecordListActivity : ComponentActivity() {
         playVideo(path, startPosition)
     }
 
-
-    private fun showVideoOptionsDialog(videoPath: String) {
-        val dialog = Dialog(this)
-        dialog.setContentView(R.layout.video_options_dialog)
-
-        // 设置对话框窗口参数
-        dialog.window?.apply {
-            setBackgroundDrawableResource(android.R.color.transparent)
-            // 设置对话框位置为屏幕中心
-            setGravity(android.view.Gravity.CENTER)
-            // 设置动画
-            setWindowAnimations(android.R.style.Animation_Dialog)
-        }
-
-        val openOption = dialog.findViewById<TextView>(R.id.openOption)
-        val encodeOption = dialog.findViewById<TextView>(R.id.encodeOption)
-        val aacEncodeOption = dialog.findViewById<TextView>(R.id.aacEncodeOption)
-        val openFfmpegOption = dialog.findViewById<TextView>(R.id.openFfmpegOption)
-
-        // 设置默认焦点
-        dialog.setOnShowListener {
-            openOption.requestFocus()
-        }
-
-        openOption.setOnClickListener {
-            dialog.dismiss()
-            // 检查是否有播放记录
-            val record = unfinishedRecords.find { it.path == videoPath }
-            if (record != null) {
-                if (record.isCompleted()) {
-                    // 如果已经播放完成，从头开始播放
-                    playVideo(videoPath, 0)
-                } else {
-                    // 从上次播放位置继续播放
-                    playVideo(videoPath, record.position)
-                }
-            } else {
-                // 没有播放记录，从头开始播放
-                playVideo(videoPath)
-            }
-        }
-
-        encodeOption.setOnClickListener {
-            dialog.dismiss()
-            sendEncodeCommand(videoPath)
-        }
-
-        openFfmpegOption.setOnClickListener {
-            dialog.dismiss()
-            //playVideo(videoPath)
-            // 检查是否有播放记录
-            val record = unfinishedRecords.find { it.path == videoPath }
-            if (record != null) {
-                if (record.isCompleted()) {
-                    // 如果已经播放完成，从头开始播放
-                    playVideo(videoPath, 0, true)
-                } else {
-                    // 从上次播放位置继续播放
-                    playVideo(videoPath, record.position, true)
-                }
-            } else {
-                // 没有播放记录，从头开始播放
-                playVideo(videoPath, 0, true)
-            }
-        }
-
-        aacEncodeOption.setOnClickListener{
-            dialog.dismiss()
-            sendAACEncodeCommand(videoPath)
-        }
-
-        // 处理对话框的按键事件
-        dialog.setOnKeyListener { _, keyCode, event ->
-            if (event.action != KeyEvent.ACTION_DOWN) {
-                return@setOnKeyListener false
-            }
-
-            when (keyCode) {
-                KeyEvent.KEYCODE_BACK -> {
-                    dialog.dismiss()
-                    true
-                }
-                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    // 获取当前焦点视图
-                    val focusedView = dialog.currentFocus
-                    when (focusedView?.id) {
-                        R.id.openOption -> {
-                            dialog.dismiss()
-                            playVideo(videoPath)
-                            true
-                        }
-                        R.id.encodeOption -> {
-                            dialog.dismiss()
-                            sendEncodeCommand(videoPath)
-                            true
-                        }
-                        else -> false
-                    }
-                }
-                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
-                    // 让系统处理上下键的焦点移动
-                    false
-                }
-                else -> true
-            }
-        }
-
-        dialog.show()
-    }
 
 
     private fun sendAACEncodeCommand(videoPath: String) {

@@ -442,7 +442,6 @@ class FileListActivity : ComponentActivity() {
         val openOption = dialog.findViewById<TextView>(R.id.openOption)
         val encodeOption = dialog.findViewById<TextView>(R.id.encodeOption)
         val aacEncodeOption = dialog.findViewById<TextView>(R.id.aacEncodeOption)
-        val openFfmpegOption = dialog.findViewById<TextView>(R.id.openFfmpegOption)
         
         // 设置默认焦点
         dialog.setOnShowListener {
@@ -467,25 +466,7 @@ class FileListActivity : ComponentActivity() {
                 playVideo(videoPath, 0, false)
             }
         }
-        openFfmpegOption.setOnClickListener {
-            dialog.dismiss()
-            //playVideo(videoPath)
-            // 检查是否有播放记录
-            val record = unfinishedRecords.find { it.path == videoPath }
-            if (record != null) {
-                if (record.isCompleted()) {
-                    // 如果已经播放完成，从头开始播放
-                    playVideo(videoPath, 0, true)
-                } else {
-                    // 从上次播放位置继续播放
-                    playVideo(videoPath, record.position, true)
-                }
-            } else {
-                // 没有播放记录，从头开始播放
-                playVideo(videoPath, 0, true)
-            }
-        }
-        
+
         encodeOption.setOnClickListener {
             dialog.dismiss()
             sendEncodeCommand(videoPath)

@@ -22,6 +22,23 @@
         android:paddingEnd="16dp"
         android:layout_marginBottom="8dp"
         android:nextFocusUp="@id/encodeOption"
+        android:nextFocusDown="@id/openFfmpegOption"/>
+
+    <TextView
+        android:id="@+id/openFfmpegOption"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:text="ffmpeg播放"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:background="@drawable/menu_item_background"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:layout_marginBottom="8dp"
+        android:nextFocusUp="@id/encodeOption"
         android:nextFocusDown="@id/encodeOption"/>
 
     <TextView

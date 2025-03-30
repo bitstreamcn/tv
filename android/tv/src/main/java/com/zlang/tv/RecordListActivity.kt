@@ -1,6 +1,7 @@
 package com.zlang.tv
 
 import android.app.Activity
+import android.app.Dialog
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -132,17 +133,237 @@ class RecordListActivity : ComponentActivity() {
             }
         }
     }
-    
-    private fun playVideo(record: VideoRecord) {
 
-        if (record.path.startsWith("smb://")) {
+    private fun playVideo(path: String, startPosition: Long = 0, ffmpeg:Boolean)
+    {
+        if (path.startsWith("smb://")) {
             // 启动VideoPlayerActivity
-            val intent = SmbVideoPlayerActivity.createIntent(this, record.path, if (isCompleted) 0 else record.position, serverIp)
+            val intent = SmbVideoPlayerActivity.createIntent(this, path, startPosition, serverIp)
             startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
         }else{
-            val intent = VideoPlayerActivity.createIntent(this, record.path, if (isCompleted) 0 else record.position, serverIp)
+            val intent = VideoPlayerActivity.createIntent(this, path, startPosition, serverIp, ffmpeg)
             startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
         }
+    }
+
+    private fun playVideo(path: String, startPosition: Long = 0) {
+        if (path.endsWith(".ts", true)) {
+
+            // 检查是否有播放记录
+            val record = unfinishedRecords.find { it.path == path }
+            if (record != null) {
+                if (record.isCompleted()) {
+                    // 如果已经播放完成，从头开始播放
+                    playVideo(path, 0, false)
+                } else {
+                    // 从上次播放位置继续播放
+                    playVideo(path, record.position, false)
+                }
+            } else {
+                // 没有播放记录，从头开始播放
+                playVideo(path, 0, false)
+            }
+
+
+        } else {
+            // 其他视频文件显示选项对话框
+            showVideoOptionsDialog(path)
+        }
+    }
+    
+    private fun playVideo(record: VideoRecord) {
+        val path = record.path
+        val startPosition = if (isCompleted) 0 else record.position
+
+        if (path.startsWith("smb://")) {
+            playVideo(path, startPosition, false)
+            return
+        }
+
+        playVideo(path, startPosition)
+    }
+
+
+    private fun showVideoOptionsDialog(videoPath: String) {
+        val dialog = Dialog(this)
+        dialog.setContentView(R.layout.video_options_dialog)
+
+        // 设置对话框窗口参数
+        dialog.window?.apply {
+            setBackgroundDrawableResource(android.R.color.transparent)
+            // 设置对话框位置为屏幕中心
+            setGravity(android.view.Gravity.CENTER)
+            // 设置动画
+            setWindowAnimations(android.R.style.Animation_Dialog)
+        }
+
+        val openOption = dialog.findViewById<TextView>(R.id.openOption)
+        val encodeOption = dialog.findViewById<TextView>(R.id.encodeOption)
+        val aacEncodeOption = dialog.findViewById<TextView>(R.id.aacEncodeOption)
+        val openFfmpegOption = dialog.findViewById<TextView>(R.id.openFfmpegOption)
+
+        // 设置默认焦点
+        dialog.setOnShowListener {
+            openOption.requestFocus()
+        }
+
+        openOption.setOnClickListener {
+            dialog.dismiss()
+            // 检查是否有播放记录
+            val record = unfinishedRecords.find { it.path == videoPath }
+            if (record != null) {
+                if (record.isCompleted()) {
+                    // 如果已经播放完成，从头开始播放
+                    playVideo(videoPath, 0)
+                } else {
+                    // 从上次播放位置继续播放
+                    playVideo(videoPath, record.position)
+                }
+            } else {
+                // 没有播放记录，从头开始播放
+                playVideo(videoPath)
+            }
+        }
+
+        encodeOption.setOnClickListener {
+            dialog.dismiss()
+            sendEncodeCommand(videoPath)
+        }
+
+        openFfmpegOption.setOnClickListener {
+            dialog.dismiss()
+            //playVideo(videoPath)
+            // 检查是否有播放记录
+            val record = unfinishedRecords.find { it.path == videoPath }
+            if (record != null) {
+                if (record.isCompleted()) {
+                    // 如果已经播放完成，从头开始播放
+                    playVideo(videoPath, 0, true)
+                } else {
+                    // 从上次播放位置继续播放
+                    playVideo(videoPath, record.position, true)
+                }
+            } else {
+                // 没有播放记录，从头开始播放
+                playVideo(videoPath, 0, true)
+            }
+        }
+
+        aacEncodeOption.setOnClickListener{
+            dialog.dismiss()
+            sendAACEncodeCommand(videoPath)
+        }
+
+        // 处理对话框的按键事件
+        dialog.setOnKeyListener { _, keyCode, event ->
+            if (event.action != KeyEvent.ACTION_DOWN) {
+                return@setOnKeyListener false
+            }
+
+            when (keyCode) {
+                KeyEvent.KEYCODE_BACK -> {
+                    dialog.dismiss()
+                    true
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    // 获取当前焦点视图
+                    val focusedView = dialog.currentFocus
+                    when (focusedView?.id) {
+                        R.id.openOption -> {
+                            dialog.dismiss()
+                            playVideo(videoPath)
+                            true
+                        }
+                        R.id.encodeOption -> {
+                            dialog.dismiss()
+                            sendEncodeCommand(videoPath)
+                            true
+                        }
+                        else -> false
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    // 让系统处理上下键的焦点移动
+                    false
+                }
+                else -> true
+            }
+        }
+
+        dialog.show()
+    }
+
+
+    private fun sendAACEncodeCommand(videoPath: String) {
+
+        Thread {
+            try {
+                val command = JSONObject().apply {
+                    put("action", "aac5.1")
+                    put("path", videoPath)
+                }
+
+                val commandStr = command.toString()
+                Log.d(TAG, "发送编码命令: $commandStr")
+                val response = TcpControlClient.sendTlv(commandStr)
+
+                runOnUiThread {
+
+                    if (response == null) {
+                        showToast("发送编码命令失败")
+                        return@runOnUiThread
+                    }
+
+                    try {
+                        val jsonResponse = response
+                        if (jsonResponse.getString("status") == "success") {
+                            showToast("编码命令已发送，请稍后查看")
+                        } else {
+                            val errorMessage = jsonResponse.optString("message", "未知错误")
+                            showToast("编码命令失败: $errorMessage")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "解析编码响应出错", e)
+                        showToast("解析编码响应出错")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "发送编码命令出错", e)
+                runOnUiThread {
+                    showToast("发送编码命令出错")
+                }
+            }
+        }.start()
+    }
+
+    private fun sendEncodeCommand(videoPath: String) {
+        val command = JSONObject().apply {
+            put("action", "enc")
+            put("path", videoPath)
+        }
+        Thread {
+            try {
+                val commandStr = command.toString()
+                Log.d("ServerComm", "发送转码命令: $commandStr")
+                val response = TcpControlClient.sendTlv(commandStr)
+                Log.d("ServerComm", "接收数据: $response")
+
+
+
+                val jsonResponse = response
+                if (jsonResponse.getString("status") == "success") {
+                    showToast("转码任务已提交")
+                    // 延迟2秒后刷新列表
+                    Thread.sleep(2000)
+                } else {
+                    val errorMessage = jsonResponse.optString("message", "未知错误")
+                    showToast("转码失败: $errorMessage")
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error sending encode command", e)
+                showToast("转码命令发送失败")
+            }
+        }.start()
     }
     
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

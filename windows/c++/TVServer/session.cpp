@@ -392,6 +392,7 @@ void Session::control_fun()
                 memset(&run_status, 0, sizeof(run_status));
 
                 bool raw = isTsFile(path);
+                bool ffmpeg = cmd["ffmpeg"];
                 if (nullptr != media) {
                     delete media;
                     media = nullptr;
@@ -399,7 +400,7 @@ void Session::control_fun()
                 clear_queue();
                 media = new Media(path, *this);
                 media->Seek(pts);
-                media->Start(true);
+                media->Start(!ffmpeg);
                 response["status"] = "success";
                 response["message"] = "";
                 response["duration"] = media->Duration();
@@ -417,6 +418,7 @@ void Session::control_fun()
                 std::string path = cmd["path"]; //返回的是UTF-8格式
                 log("seek：" + UTF8ToGB2312(path) + std::string(" - ") + std::to_string(pts));
                 bool raw = isTsFile(path);
+                bool ffmpeg = cmd["ffmpeg"];
                 if (nullptr != media) {
                     delete media;
                     media = nullptr;
@@ -424,7 +426,7 @@ void Session::control_fun()
                 clear_queue();
                 media = new Media(path, *this);
                 media->Seek(pts);
-                media->Start(true);
+                media->Start(!ffmpeg);
                 response["status"] = "success";
                 response["message"] = "";
                 response["duration"] = media->Duration();
@@ -447,7 +449,7 @@ void Session::control_fun()
                     std::string outputPath = directory + "\\" + filenameWithoutExt + ".ts";
 
                     // 构建 ffmpeg 命令
-                    std::string ffmpegCommand = "ffmpeg -y -re -i \"" + pathgb2312 + "\" -c:v libx264 -preset slow -tune film -crf 23 -bufsize 6M -maxrate 5M -b:v 2M -c:a aac -b:a 160k -f mpegts \"" + outputPath + "\"";
+                    std::string ffmpegCommand = "ffmpeg -y -re -i \"" + pathgb2312 + "\" -c:v libx264 -preset slow -tune film -crf 23 -bufsize 6M -maxrate 5M -b:v 2M -c:a aac -ac 2 -b:a 160k -f mpegts \"" + outputPath + "\"";
                     //std::string ffmpegCommand = "ffmpeg -y -i \"" + pathgb2312 + "\" -c copy -f mpegts \"" + outputPath + "\"";
 
                     STARTUPINFO si = { sizeof(si) };

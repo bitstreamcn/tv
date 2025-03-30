@@ -317,14 +317,14 @@ class FileListActivity : ComponentActivity() {
                         if (record != null) {
                             if (record.isCompleted()) {
                                 // 如果已经播放完成，从头开始播放
-                                playVideo(item.path, 0)
+                                playVideo(item.path, 0, false)
                             } else {
                                 // 从上次播放位置继续播放
-                                playVideo(item.path, record.position)
+                                playVideo(item.path, record.position, false)
                             }
                         } else {
                             // 没有播放记录，从头开始播放
-                            playVideo(item.path)
+                            playVideo(item.path, 0, false)
                         }
 
 
@@ -442,6 +442,7 @@ class FileListActivity : ComponentActivity() {
         val openOption = dialog.findViewById<TextView>(R.id.openOption)
         val encodeOption = dialog.findViewById<TextView>(R.id.encodeOption)
         val aacEncodeOption = dialog.findViewById<TextView>(R.id.aacEncodeOption)
+        val openFfmpegOption = dialog.findViewById<TextView>(R.id.openFfmpegOption)
         
         // 设置默认焦点
         dialog.setOnShowListener {
@@ -456,14 +457,32 @@ class FileListActivity : ComponentActivity() {
             if (record != null) {
                 if (record.isCompleted()) {
                     // 如果已经播放完成，从头开始播放
-                    playVideo(videoPath, 0)
+                    playVideo(videoPath, 0, false)
                 } else {
                     // 从上次播放位置继续播放
-                    playVideo(videoPath, record.position)
+                    playVideo(videoPath, record.position, false)
                 }
             } else {
                 // 没有播放记录，从头开始播放
-                playVideo(videoPath)
+                playVideo(videoPath, 0, false)
+            }
+        }
+        openFfmpegOption.setOnClickListener {
+            dialog.dismiss()
+            //playVideo(videoPath)
+            // 检查是否有播放记录
+            val record = unfinishedRecords.find { it.path == videoPath }
+            if (record != null) {
+                if (record.isCompleted()) {
+                    // 如果已经播放完成，从头开始播放
+                    playVideo(videoPath, 0, true)
+                } else {
+                    // 从上次播放位置继续播放
+                    playVideo(videoPath, record.position, true)
+                }
+            } else {
+                // 没有播放记录，从头开始播放
+                playVideo(videoPath, 0, true)
             }
         }
         
@@ -480,9 +499,9 @@ class FileListActivity : ComponentActivity() {
         dialog.show()
     }
     
-    private fun playVideo(path: String, startPosition: Long = 0) {
+    private fun playVideo(path: String, startPosition: Long = 0, ffmpeg: Boolean) {
         // 启动VideoPlayerActivity播放视频
-        val intent = VideoPlayerActivity.createIntent(this, path, startPosition, serverIp)
+        val intent = VideoPlayerActivity.createIntent(this, path, startPosition, serverIp, ffmpeg)
         startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
     }
     

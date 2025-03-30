@@ -80,6 +80,8 @@ class SmbServerListActivity : ComponentActivity() {
         
         fileListView.layoutManager = LinearLayoutManager(this)
         fileListView.setHasFixedSize(true)
+
+        currentPathText.visibility = View.GONE
         
         // 更新路径显示
         updatePathDisplay()
@@ -189,104 +191,8 @@ class SmbServerListActivity : ComponentActivity() {
             path.endsWith(".3gp", true)
     }
     
-    private fun showVideoOptionsDialog(videoPath: String) {
-        val dialog = android.app.Dialog(this)
-        dialog.setContentView(R.layout.video_options_dialog)
-        
-        // 设置对话框窗口参数
-        dialog.window?.apply {
-            setBackgroundDrawableResource(android.R.color.transparent)
-            // 设置对话框位置为屏幕中心
-            setGravity(android.view.Gravity.CENTER)
-            // 设置动画
-            setWindowAnimations(android.R.style.Animation_Dialog)
-        }
-        
-        val openOption = dialog.findViewById<TextView>(R.id.openOption)
-        val encodeOption = dialog.findViewById<TextView>(R.id.encodeOption)
-        
-        // 设置默认焦点
-        dialog.setOnShowListener {
-            openOption.requestFocus()
-        }
-        
-        openOption.setOnClickListener {
-            dialog.dismiss()
-            //playVideo(videoPath)
-            // 检查是否有播放记录
-            val record = unfinishedRecords.find { it.path == videoPath }
-            if (record != null) {
-                if (record.isCompleted()) {
-                    // 如果已经播放完成，从头开始播放
-                    playVideo(videoPath, 0)
-                } else {
-                    // 从上次播放位置继续播放
-                    playVideo(videoPath, record.position)
-                }
-            } else {
-                // 没有播放记录，从头开始播放
-                playVideo(videoPath)
-            }
-        }
-        
-        encodeOption.setOnClickListener {
-            dialog.dismiss()
-            sendEncodeCommand(videoPath)
-        }
-        
-        dialog.show()
-    }
-    
-    private fun playVideo(path: String, startPosition: Long = 0) {
-        // 启动VideoPlayerActivity播放视频
-        val intent = VideoPlayerActivity.createIntent(this, path, startPosition, serverIp)
-        startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
-    }
-    
-    private fun sendEncodeCommand(videoPath: String) {
-        showLoading(true)
-        
-        Thread {
-            try {
-                val command = JSONObject().apply {
-                    put("action", "encode")
-                    put("path", videoPath)
-                }
-                
-                val commandStr = command.toString()
-                Log.d(TAG, "发送编码命令: $commandStr")
-                val response = TcpControlClient.sendTlv(commandStr)
-                
-                runOnUiThread {
-                    showLoading(false)
-                    
-                    if (response == null) {
-                        showToast("发送编码命令失败")
-                        return@runOnUiThread
-                    }
-                    
-                    try {
-                        val jsonResponse = response
-                        if (jsonResponse.getString("status") == "success") {
-                            showToast("编码命令已发送，请稍后查看")
-                        } else {
-                            val errorMessage = jsonResponse.optString("message", "未知错误")
-                            showToast("编码命令失败: $errorMessage")
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "解析编码响应出错", e)
-                        showToast("解析编码响应出错")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "发送编码命令出错", e)
-                runOnUiThread {
-                    showLoading(false)
-                    showToast("发送编码命令出错")
-                }
-            }
-        }.start()
-    }
+
+
     
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)

@@ -47,7 +47,7 @@ class ShareFileListActivity : ComponentActivity() {
         private const val EXTRA_INITIAL_PATH = "initial_path"
         private const val REQUEST_CODE_VIDEO_PLAYER = 1001
         
-        fun createIntent(context: Context, serverIp: String, smbServerIp: String, initialPath: String = "drives"): Intent {
+        fun createIntent(context: Context, serverIp: String, smbServerIp: String, initialPath: String = ""): Intent {
             return Intent(context, ShareFileListActivity::class.java).apply {
                 putExtra(EXTRA_SERVER_IP, serverIp)
                 putExtra(EXTRA_SMB_SERVER_IP, smbServerIp)
@@ -61,17 +61,93 @@ class ShareFileListActivity : ComponentActivity() {
     private lateinit var loadingIndicator: ProgressBar
     
     private var serverIp: String = ""
-    private var currentPath: String = "drives"
+    private var currentPath: String = ""
     private var fileListAdapter: FileListAdapter? = null
 
     private var smbServerIp: String = ""
     private var smbServer : JSONObject? = null
     private var shareName : String = ""
 
+    private val pathMap = HashMap<String, Int>() // 保存路径和对应的位置
+
+    fun fixSambaUrl(originalUrl: String): String {
+        if (originalUrl.isBlank()) {
+            throw IllegalArgumentException("URL 不能为空")
+        }
+
+        val url = StringBuilder()
+        var remaining = originalUrl
+
+        // 1. 处理协议头
+        remaining = when {
+            remaining.startsWith("smb://", ignoreCase = true) -> {
+                url.append("smb://")
+                remaining.substring(6)
+            }
+            remaining.startsWith("smb:/", ignoreCase = true) -> {
+                url.append("smb://")
+                remaining.substring(5)
+            }
+            else -> {
+                url.append("smb://")
+                remaining
+            }
+        }
+
+        // 2. 处理认证信息 (user:pass@)
+        val atIndex = remaining.indexOf('@')
+        if (atIndex != -1) {
+            val authPart = remaining.substring(0, atIndex)
+            remaining = remaining.substring(atIndex + 1)
+
+            val colonIndex = authPart.indexOf(':')
+            if (colonIndex != -1) {
+                url.append(authPart.substring(0, colonIndex + 1)) // user:
+                url.append(authPart.substring(colonIndex + 1))    // pass
+            } else {
+                url.append(authPart)
+            }
+            url.append('@')
+        }
+
+        // 3. 处理主机和路径
+        val firstSlash = remaining.indexOf('/')
+        val host = if (firstSlash != -1) remaining.substring(0, firstSlash) else remaining
+        val path = if (firstSlash != -1) remaining.substring(firstSlash) else ""
+
+        url.append(host)
+
+        // 4. 标准化路径斜杠
+        if (path.isNotEmpty()) {
+            var cleanPath = path
+            // 移除开头多余斜杠
+            while (cleanPath.startsWith('/')) {
+                cleanPath = cleanPath.substring(1)
+            }
+            // 移除结尾多余斜杠
+            while (cleanPath.endsWith('/')) {
+                cleanPath = cleanPath.dropLast(1)
+            }
+            if (cleanPath.isNotEmpty()) {
+                url.append('/').append(cleanPath).append('/')
+            }
+        }
+
+        // 5. 统一转小写协议头
+        val result = url.toString()
+        return if (result.startsWith("smb://")) {
+            result
+        } else {
+            "smb://" + result.removePrefix("smb://")
+        }
+    }
+
     //url格式："smb://user:password@192.168.1.100/share/"
     fun listSambaDirectory(smbUrl: String): Array<SmbFile>? {
+        val url = fixSambaUrl(smbUrl)
+        Log.d(TAG, "smbUrl:" + url)
         try {
-            val smbFile = SmbFile(smbUrl)
+            val smbFile = SmbFile(url, SmbConnectionManager.getContext(smbServerIp))
             if (smbFile.exists() && smbFile.isDirectory) {
                 return smbFile.listFiles()
             }
@@ -91,8 +167,7 @@ class ShareFileListActivity : ComponentActivity() {
         serverIp = intent.getStringExtra(EXTRA_SERVER_IP) ?: ""
         smbServerIp = intent.getStringExtra(ShareFileListActivity.EXTRA_SMB_SERVER_IP) ?: ""
         shareName = intent.getStringExtra(EXTRA_INITIAL_PATH) ?: ""
-        currentPath = ""
-        
+
         if (serverIp.isEmpty()) {
             showToast("服务器IP不能为空")
             finish()
@@ -108,6 +183,24 @@ class ShareFileListActivity : ComponentActivity() {
             }
             return@let null
         }
+        currentPath = fixSambaUrl("smb://${smbServer?.getString("user") ?: ""}:${smbServer?.getString("password")}@${smbServerIp}/${shareName}/")
+
+        val sharedPreferences = getSharedPreferences("path_records", MODE_PRIVATE)
+        val pathRecordsJson = sharedPreferences.getString("pos_records", null)
+        // 加载未完成记录
+        if (pathRecordsJson != null) {
+            try {
+                val jsonArray = JSONArray(pathRecordsJson)
+                for (i in 0 until jsonArray.length()) {
+                    val recordObj = jsonArray.getJSONObject(i)
+                    val path = recordObj.getString("path")
+                    val pos = recordObj.getInt("pos")
+                    pathMap[path] = pos
+                }
+            } catch (e: Exception) {
+                Log.e("FileListActivity", "加载记录出错", e)
+            }
+        }
 
         // 初始化视图
         initViews()
@@ -120,7 +213,19 @@ class ShareFileListActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
 
-
+        val sharedPreferences = getSharedPreferences("path_records", MODE_PRIVATE)
+        val fileJsonArray = JSONArray()
+        // 保存已完成记录
+        pathMap.forEach { record ->
+            val recordObj = JSONObject().apply {
+                put("path", record.key)
+                put("pos", record.value)
+            }
+            fileJsonArray.put(recordObj)
+        }
+        sharedPreferences.edit()
+            .putString("pos_records", fileJsonArray.toString())
+            .apply()
     }
     
     private fun initViews() {
@@ -138,7 +243,41 @@ class ShareFileListActivity : ComponentActivity() {
     private fun updatePathDisplay() {
         currentPathText.text = "当前路径: $currentPath"
     }
-    
+
+    fun isSmbRootUrl(url: String): Boolean {
+        // 1. 基本格式验证
+        if (!url.startsWith("smb://", ignoreCase = true)) {
+            throw IllegalArgumentException("非 SMB 协议地址")
+        }
+
+        // 2. 提取路径部分
+        val pathStart = url.indexOf('/', 6) // 跳过 "smb://" 的 6 个字符
+        if (pathStart == -1) return true // 示例：smb://host
+
+        // 3. 分割共享名称和后续路径
+        val fullPath = url.substring(pathStart + 1) // 示例：电影/子目录/ 或 电影/
+        val firstSlash = fullPath.indexOf('/')
+
+        // 4. 判断路径深度
+        return when {
+            // 没有共享名称的情况（理论上不应该存在）
+            fullPath.isEmpty() -> true
+
+            // 只有共享名称没有子目录（可能带或不带结尾斜杠）
+            firstSlash == -1 -> true
+
+            // 标准化处理路径结构
+            else -> {
+                val normalizedPath = fullPath
+                    .replace("/+".toRegex(), "/") // 合并连续斜杠
+                    .removeSuffix("/")            // 移除结尾斜杠
+
+                // 路径拆分后只剩共享名称（示例：电影）
+                normalizedPath.indexOf('/') == -1
+            }
+        }
+    }
+
     private fun loadFileList() {
         showLoading(true)
         
@@ -160,7 +299,7 @@ class ShareFileListActivity : ComponentActivity() {
                             val fileItems = ArrayList<FileItem>()
                             
                             // 首先添加上级目录（除了在根目录时）
-                            if (currentPath != "drives") {
+                            if (currentPath != "") {
                                 fileItems.add(FileItem("...", "上级目录", "directory"))
                             }
 
@@ -190,6 +329,31 @@ class ShareFileListActivity : ComponentActivity() {
                                 }
                             }
 
+                        if (fileItems.isNotEmpty()) {
+                            /*
+                            fileListView.post {
+                                fileListView.getChildAt(0)?.requestFocus()
+                            }*/
+                            // 恢复到之前的位置
+                            fileListView.post {
+                                // 恢复焦点到当前项
+                                var pathkey = path_standardizing(currentPath)
+                                var targetPosition = pathMap[pathkey]?:0
+
+                                Log.d("position", "${pathkey}: ${targetPosition}")
+
+                                // 滚动到指定位置
+                                fileListView.scrollToPosition(targetPosition)
+
+                                // 确保滚动完成后让指定位置的项目获得焦点
+                                fileListView.post {
+                                    val viewHolder = fileListView.findViewHolderForAdapterPosition(targetPosition)
+                                    viewHolder?.itemView?.requestFocus()
+                                }
+                            }
+
+
+                        }
 
                     } catch (e: Exception) {
                         Log.e(TAG, "解析文件列表出错", e)
@@ -208,15 +372,11 @@ class ShareFileListActivity : ComponentActivity() {
 
     private fun path_standardizing(path: String) : String
     {
-        if (path == "drives")
+        if (path.isEmpty())
         {
-            return path
+            return ""
         }
-        var pathkey = path.replace("\\", "/")
-        if (pathkey.last() != '/') {
-            pathkey = "${pathkey}/"
-        }
-        return pathkey
+        return fixSambaUrl(path)
     }
 
     fun getFileNameFromPath(path: String): String {
@@ -299,10 +459,19 @@ class ShareFileListActivity : ComponentActivity() {
 
 
     private fun handleFileItemClick(item: FileItem) {
+        val newSelectedPosition = (fileListView.adapter as? FileListAdapter)?.getSelectedPosition()
+
+        val pathkey = path_standardizing(currentPath)
+
+        println("${pathkey}: 选择项改变到 $newSelectedPosition")
+        pathMap[pathkey] = newSelectedPosition ?: 0
 
         if (item.name == "...") {
+            if (isSmbRootUrl(currentPath)){
+                return
+            }
             // 处理上级目录
-            val parent = File(currentPath.replace("\\", "/")).parent ?: "drives"
+            val parent = File(currentPath.replace("\\", "/")).parent ?: ""
             currentPath = path_standardizing(parent)
             updatePathDisplay()
             loadFileList()
@@ -396,61 +565,7 @@ class ShareFileListActivity : ComponentActivity() {
             path.endsWith(".ts", true) ||
             path.endsWith(".3gp", true)
     }
-    
-    private fun showVideoOptionsDialog(videoPath: String) {
-        val dialog = android.app.Dialog(this)
-        dialog.setContentView(R.layout.video_options_dialog)
-        
-        // 设置对话框窗口参数
-        dialog.window?.apply {
-            setBackgroundDrawableResource(android.R.color.transparent)
-            // 设置对话框位置为屏幕中心
-            setGravity(android.view.Gravity.CENTER)
-            // 设置动画
-            setWindowAnimations(android.R.style.Animation_Dialog)
-        }
-        
-        val openOption = dialog.findViewById<TextView>(R.id.openOption)
-        val encodeOption = dialog.findViewById<TextView>(R.id.encodeOption)
-        
-        // 设置默认焦点
-        dialog.setOnShowListener {
-            openOption.requestFocus()
-        }
-        
-        openOption.setOnClickListener {
-            dialog.dismiss()
-            //playVideo(videoPath)
-            // 检查是否有播放记录
-            val record = unfinishedRecords.find { it.path == videoPath }
-            if (record != null) {
-                if (record.isCompleted()) {
-                    // 如果已经播放完成，从头开始播放
-                    playVideo(videoPath, 0)
-                } else {
-                    // 从上次播放位置继续播放
-                    playVideo(videoPath, record.position)
-                }
-            } else {
-                // 没有播放记录，从头开始播放
-                playVideo(videoPath)
-            }
-        }
-        
-        encodeOption.setOnClickListener {
-            dialog.dismiss()
-            sendEncodeCommand(videoPath)
-        }
-        
-        dialog.show()
-    }
-    
-    private fun playVideo(path: String, startPosition: Long = 0) {
-        // 启动VideoPlayerActivity播放视频
-        val intent = VideoPlayerActivity.createIntent(this, path, startPosition, serverIp)
-        startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
-    }
-    
+
     private fun sendEncodeCommand(videoPath: String) {
         showLoading(true)
         
@@ -507,9 +622,9 @@ class ShareFileListActivity : ComponentActivity() {
     
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (currentPath != "drives") {
+            if (currentPath != "" && !isSmbRootUrl(currentPath)) {
                 // 如果不是在根目录，返回上一级目录
-                val parent = File(currentPath.replace("\\", "/")).parent ?: "drives"
+                val parent = File(currentPath.replace("\\", "/")).parent ?: ""
                 currentPath = path_standardizing(parent)
                 updatePathDisplay()
                 loadFileList()

@@ -40,15 +40,17 @@ class VideoPlayerActivity : ComponentActivity() {
         private const val EXTRA_VIDEO_PATH = "video_path"
         private const val EXTRA_START_POSITION = "start_position"
         private const val EXTRA_SERVER_IP = "server_ip"
+        private const val EXTRA_FFMPEG = "ffmpeg"
 
         var instance : VideoPlayerActivity? = null
         
         // 创建启动Activity的Intent
-        fun createIntent(context: Context, path: String, startPosition: Long, serverIp: String): Intent {
+        fun createIntent(context: Context, path: String, startPosition: Long, serverIp: String, ffmpeg: Boolean): Intent {
             return Intent(context, VideoPlayerActivity::class.java).apply {
                 putExtra(EXTRA_VIDEO_PATH, path)
                 putExtra(EXTRA_START_POSITION, startPosition)
                 putExtra(EXTRA_SERVER_IP, serverIp)
+                putExtra(EXTRA_FFMPEG, ffmpeg)
             }
         }
     }
@@ -71,6 +73,7 @@ class VideoPlayerActivity : ComponentActivity() {
     private var currentPlaybackPosition: Long = 0
     private var videoDuration: Long = 0
     private var isSeekMode: Boolean = false
+    private var isFfmpeg:Boolean = false
 
     private var isfinish = false;
     
@@ -148,6 +151,7 @@ class VideoPlayerActivity : ComponentActivity() {
         currentVideoPath = intent.getStringExtra(EXTRA_VIDEO_PATH) ?: ""
         startPosition = intent.getLongExtra(EXTRA_START_POSITION, 0)
         serverIp = intent.getStringExtra(EXTRA_SERVER_IP) ?: ""
+        isFfmpeg = intent.getBooleanExtra(EXTRA_FFMPEG, false)
         
         if (currentVideoPath.isEmpty() || serverIp.isEmpty()) {
             showToast("参数错误")
@@ -374,6 +378,7 @@ class VideoPlayerActivity : ComponentActivity() {
             put("action", "stream")
             put("path", currentVideoPath)
             put("start_time", formatTimeForServer(position))
+            put("ffmpeg", isFfmpeg)
         }
         if (position > 0)
         {
@@ -381,6 +386,7 @@ class VideoPlayerActivity : ComponentActivity() {
                 put("action", "seek")
                 put("path", currentVideoPath)
                 put("pts", formatTimeForServer(position))
+                put("ffmpeg", isFfmpeg)
             }
             //player?.stop()
         }
@@ -729,6 +735,7 @@ class VideoPlayerActivity : ComponentActivity() {
                 put("action", "stream")
                 put("path", currentVideoPath)
                 put("start_time", formatTimeForServer(startPosition))
+                put("ffmpeg", isFfmpeg)
             }
             if (startPosition > 0)
             {
@@ -736,6 +743,7 @@ class VideoPlayerActivity : ComponentActivity() {
                     put("action", "seek")
                     put("path", currentVideoPath)
                     put("pts", formatTimeForServer(startPosition))
+                    put("ffmpeg", isFfmpeg)
                 }
                 //player?.stop()
             }

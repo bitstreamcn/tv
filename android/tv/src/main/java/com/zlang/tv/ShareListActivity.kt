@@ -104,6 +104,8 @@ class ShareListActivity : ComponentActivity() {
         
         fileListView.layoutManager = LinearLayoutManager(this)
         fileListView.setHasFixedSize(true)
+
+        currentPathText.visibility = View.GONE
         
         // 更新路径显示
         updatePathDisplay()
@@ -177,6 +179,13 @@ class ShareListActivity : ComponentActivity() {
                             }
                             fileListView.adapter = fileListAdapter
 
+                            // 恢复焦点
+                            fileListView.post {
+                                fileListView.requestFocus()
+                                if (fileItems.isNotEmpty()) {
+                                    fileListView.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
+                                }
+                            }
 
                     } catch (e: Exception) {
                         Log.e(TAG, "解析文件列表出错", e)

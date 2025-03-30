@@ -33,6 +33,9 @@ object SmbConnectionManager {
                 put("jcifs.smb.client.enableSMB2", "true")
                 put("jcifs.smb.client.disableSMB1", "true")
 
+                setProperty("jcifs.smb.client.minVersion", "SMB210")  // SMB2.1
+                setProperty("jcifs.smb.client.maxVersion", "SMB311")  // SMB3.1.1
+
                 // 连接超时（毫秒）
                 put("jcifs.smb.client.connTimeout", "30000")
 

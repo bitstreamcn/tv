@@ -40,6 +40,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.bumptech.glide.Glide
+import com.zlang.tv.FileListActivity.Companion
 import com.zlang.tv.ui.theme.TvTheme
 import com.zzzmode.android.remotelogcat.LogcatRunner
 import org.json.JSONArray
@@ -817,6 +818,8 @@ class MainActivity : ComponentActivity() {
 
         val openOption = dialog.findViewById<TextView>(R.id.openOption)
         val encodeOption = dialog.findViewById<TextView>(R.id.encodeOption)
+        val aacEncodeOption = dialog.findViewById<TextView>(R.id.aacEncodeOption)
+        val openFfmpegOption = dialog.findViewById<TextView>(R.id.openFfmpegOption)
 
         // 设置默认焦点
         dialog.setOnShowListener {
@@ -844,6 +847,30 @@ class MainActivity : ComponentActivity() {
         encodeOption.setOnClickListener {
             dialog.dismiss()
             sendEncodeCommand(videoPath)
+        }
+
+        openFfmpegOption.setOnClickListener {
+            dialog.dismiss()
+            //playVideo(videoPath)
+            // 检查是否有播放记录
+            val record = unfinishedRecords.find { it.path == videoPath }
+            if (record != null) {
+                if (record.isCompleted()) {
+                    // 如果已经播放完成，从头开始播放
+                    playVideo(videoPath, 0, true)
+                } else {
+                    // 从上次播放位置继续播放
+                    playVideo(videoPath, record.position, true)
+                }
+            } else {
+                // 没有播放记录，从头开始播放
+                playVideo(videoPath, 0, true)
+            }
+        }
+
+        aacEncodeOption.setOnClickListener{
+            dialog.dismiss()
+            sendAACEncodeCommand(videoPath)
         }
 
         // 处理对话框的按键事件
@@ -883,6 +910,49 @@ class MainActivity : ComponentActivity() {
         }
 
         dialog.show()
+    }
+
+
+    private fun sendAACEncodeCommand(videoPath: String) {
+
+        Thread {
+            try {
+                val command = JSONObject().apply {
+                    put("action", "aac5.1")
+                    put("path", videoPath)
+                }
+
+                val commandStr = command.toString()
+                Log.d(TAG, "发送编码命令: $commandStr")
+                val response = TcpControlClient.sendTlv(commandStr)
+
+                runOnUiThread {
+
+                    if (response == null) {
+                        showToast("发送编码命令失败")
+                        return@runOnUiThread
+                    }
+
+                    try {
+                        val jsonResponse = response
+                        if (jsonResponse.getString("status") == "success") {
+                            showToast("编码命令已发送，请稍后查看")
+                        } else {
+                            val errorMessage = jsonResponse.optString("message", "未知错误")
+                            showToast("编码命令失败: $errorMessage")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "解析编码响应出错", e)
+                        showToast("解析编码响应出错")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "发送编码命令出错", e)
+                runOnUiThread {
+                    showToast("发送编码命令出错")
+                }
+            }
+        }.start()
     }
 
     private fun sendEncodeCommand(videoPath: String) {
@@ -982,15 +1052,51 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun playVideo(path: String, startPosition: Long = 0) {
+    private fun playVideo(path: String, startPosition: Long = 0, ffmpeg:Boolean)
+    {
         if (path.startsWith("smb://")) {
             // 启动VideoPlayerActivity
             val intent = SmbVideoPlayerActivity.createIntent(this, path, startPosition, serverIp)
             startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
         }else{
-            val intent = VideoPlayerActivity.createIntent(this, path, startPosition, serverIp)
+            val intent = VideoPlayerActivity.createIntent(this, path, startPosition, serverIp, ffmpeg)
             startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
         }
+    }
+
+    private fun playVideo(path: String, startPosition: Long = 0) {
+        if (path.startsWith("smb://")) {
+            playVideo(path, startPosition, false)
+            return
+        }
+
+        if (isVideoFile(path)) {
+            if (path.endsWith(".ts", true)) {
+
+                // 检查是否有播放记录
+                val record = unfinishedRecords.find { it.path == path }
+                if (record != null) {
+                    if (record.isCompleted()) {
+                        // 如果已经播放完成，从头开始播放
+                        playVideo(path, 0, false)
+                    } else {
+                        // 从上次播放位置继续播放
+                        playVideo(path, record.position, false)
+                    }
+                } else {
+                    // 没有播放记录，从头开始播放
+                    playVideo(path, 0, false)
+                }
+
+
+            } else {
+                // 其他视频文件显示选项对话框
+                showVideoOptionsDialog(path)
+            }
+        }
+
+
+
     }
 
     // 处理从VideoPlayerActivity返回的结果

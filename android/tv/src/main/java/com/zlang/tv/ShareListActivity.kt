@@ -56,7 +56,8 @@ class ShareListActivity : ComponentActivity() {
     private var smbServerIp: String = ""
     private var currentPath: String = "drives"
     private var fileListAdapter: FileListAdapter? = null
-    private val pathMap = HashMap<String, Int>() // 保存路径和对应的位置
+
+    private var pathkey = ""
 
     private var smbServer : JSONObject? = null
 
@@ -84,6 +85,10 @@ class ShareListActivity : ComponentActivity() {
             return@let null
         }
 
+        pathkey = "smb://${smbServerIp}/"
+
+        PathRecordsManager.init(this)
+
         // 初始化视图
         initViews()
         
@@ -95,6 +100,7 @@ class ShareListActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
 
+        PathRecordsManager.save(this)
     }
     
     private fun initViews() {
@@ -187,6 +193,31 @@ class ShareListActivity : ComponentActivity() {
                                 }
                             }
 
+                        if (fileItems.isNotEmpty()) {
+                            /*
+                            fileListView.post {
+                                fileListView.getChildAt(0)?.requestFocus()
+                            }*/
+                            // 恢复到之前的位置
+                            fileListView.post {
+                                // 恢复焦点到当前项
+                                var targetPosition = PathRecordsManager.getPos(pathkey)
+
+                                Log.d("position", "${pathkey}: ${targetPosition}")
+
+                                // 滚动到指定位置
+                                fileListView.scrollToPosition(targetPosition)
+
+                                // 确保滚动完成后让指定位置的项目获得焦点
+                                fileListView.post {
+                                    val viewHolder = fileListView.findViewHolderForAdapterPosition(targetPosition)
+                                    viewHolder?.itemView?.requestFocus()
+                                }
+                            }
+
+
+                        }
+
                     } catch (e: Exception) {
                         Log.e(TAG, "解析文件列表出错", e)
                         showToast("解析文件列表出错")
@@ -216,6 +247,12 @@ class ShareListActivity : ComponentActivity() {
     }
     
     private fun handleFileItemClick(item: FileItem) {
+
+        val newSelectedPosition = (fileListView.adapter as? FileListAdapter)?.getSelectedPosition()
+
+        println("${pathkey}: 选择项改变到 $newSelectedPosition")
+        PathRecordsManager.setPos(pathkey,newSelectedPosition ?: 0)
+
         val intent = ShareFileListActivity.createIntent(this, serverIp, smbServerIp, item.name)
         startActivity(intent)
     }

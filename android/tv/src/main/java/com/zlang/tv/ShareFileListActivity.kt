@@ -68,7 +68,6 @@ class ShareFileListActivity : ComponentActivity() {
     private var smbServer : JSONObject? = null
     private var shareName : String = ""
 
-    private val pathMap = HashMap<String, Int>() // 保存路径和对应的位置
 
     fun fixSambaUrl(originalUrl: String): String {
         if (originalUrl.isBlank()) {
@@ -185,22 +184,7 @@ class ShareFileListActivity : ComponentActivity() {
         }
         currentPath = fixSambaUrl("smb://${smbServer?.getString("user") ?: ""}:${smbServer?.getString("password")}@${smbServerIp}/${shareName}/")
 
-        val sharedPreferences = getSharedPreferences("path_records", MODE_PRIVATE)
-        val pathRecordsJson = sharedPreferences.getString("pos_records", null)
-        // 加载未完成记录
-        if (pathRecordsJson != null) {
-            try {
-                val jsonArray = JSONArray(pathRecordsJson)
-                for (i in 0 until jsonArray.length()) {
-                    val recordObj = jsonArray.getJSONObject(i)
-                    val path = recordObj.getString("path")
-                    val pos = recordObj.getInt("pos")
-                    pathMap[path] = pos
-                }
-            } catch (e: Exception) {
-                Log.e("FileListActivity", "加载记录出错", e)
-            }
-        }
+        PathRecordsManager.init(this)
 
         // 初始化视图
         initViews()
@@ -213,19 +197,7 @@ class ShareFileListActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
 
-        val sharedPreferences = getSharedPreferences("path_records", MODE_PRIVATE)
-        val fileJsonArray = JSONArray()
-        // 保存已完成记录
-        pathMap.forEach { record ->
-            val recordObj = JSONObject().apply {
-                put("path", record.key)
-                put("pos", record.value)
-            }
-            fileJsonArray.put(recordObj)
-        }
-        sharedPreferences.edit()
-            .putString("pos_records", fileJsonArray.toString())
-            .apply()
+        PathRecordsManager.save(this)
     }
     
     private fun initViews() {
@@ -338,7 +310,7 @@ class ShareFileListActivity : ComponentActivity() {
                             fileListView.post {
                                 // 恢复焦点到当前项
                                 var pathkey = path_standardizing(currentPath)
-                                var targetPosition = pathMap[pathkey]?:0
+                                var targetPosition = PathRecordsManager.getPos(pathkey)
 
                                 Log.d("position", "${pathkey}: ${targetPosition}")
 
@@ -464,7 +436,7 @@ class ShareFileListActivity : ComponentActivity() {
         val pathkey = path_standardizing(currentPath)
 
         println("${pathkey}: 选择项改变到 $newSelectedPosition")
-        pathMap[pathkey] = newSelectedPosition ?: 0
+        PathRecordsManager.setPos(pathkey,newSelectedPosition ?: 0)
 
         if (item.name == "...") {
             if (isSmbRootUrl(currentPath)){

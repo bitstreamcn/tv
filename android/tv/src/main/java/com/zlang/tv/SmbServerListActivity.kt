@@ -45,6 +45,8 @@ class SmbServerListActivity : ComponentActivity() {
     private var currentPath: String = "drives"
     private var fileListAdapter: FileListAdapter? = null
 
+    private val pathkey = "smbserverlist"
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_file_list)
@@ -59,6 +61,7 @@ class SmbServerListActivity : ComponentActivity() {
             return
         }
 
+        PathRecordsManager.init(this)
 
         // 初始化视图
         initViews()
@@ -71,6 +74,7 @@ class SmbServerListActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
 
+        PathRecordsManager.save(this)
     }
     
     private fun initViews() {
@@ -128,6 +132,32 @@ class SmbServerListActivity : ComponentActivity() {
                                         fileListView.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
                                     }
                                 }
+
+
+                                if (fileItems.isNotEmpty()) {
+                                    /*
+                                    fileListView.post {
+                                        fileListView.getChildAt(0)?.requestFocus()
+                                    }*/
+                                    // 恢复到之前的位置
+                                    fileListView.post {
+                                        // 恢复焦点到当前项
+                                        var targetPosition = PathRecordsManager.getPos(pathkey)
+
+                                        Log.d("position", "${pathkey}: ${targetPosition}")
+
+                                        // 滚动到指定位置
+                                        fileListView.scrollToPosition(targetPosition)
+
+                                        // 确保滚动完成后让指定位置的项目获得焦点
+                                        fileListView.post {
+                                            val viewHolder = fileListView.findViewHolderForAdapterPosition(targetPosition)
+                                            viewHolder?.itemView?.requestFocus()
+                                        }
+                                    }
+
+
+                                }
                             }
 
                     } catch (e: Exception) {
@@ -159,6 +189,11 @@ class SmbServerListActivity : ComponentActivity() {
     }
     
     private fun handleFileItemClick(item: FileItem) {
+
+        val newSelectedPosition = (fileListView.adapter as? FileListAdapter)?.getSelectedPosition()
+
+        println("${pathkey}: 选择项改变到 $newSelectedPosition")
+        PathRecordsManager.setPos(pathkey,newSelectedPosition ?: 0)
 
         val record : JSONObject? = MainActivity.smbServer?.let { serverArray ->
             for (i in 0 until serverArray.length()) {

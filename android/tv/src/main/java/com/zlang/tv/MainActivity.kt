@@ -227,6 +227,8 @@ class MainActivity : ComponentActivity() {
         Thread {
             TelnetLikeService.start()
         }.start()
+
+        PathRecordsManager.init(this)
     }
 
     private fun initializeViews() {

@@ -11,7 +11,8 @@ data class VideoRecord(
     var thumbnail: String? = null,   // 缩略图文件路径
     var lastPlayTime: Long = System.currentTimeMillis(), // 最后播放时间
     var isFinished: Boolean = false,  // 是否播放完成
-    var thumbnailPath: String? = null
+    var thumbnailPath: String? = null,
+    var ffmpeg: Boolean = false
 ) : Serializable {
     fun getProgress(): Float {
         return if (duration > 0) (position.toFloat() / duration.toFloat()) * 100 else 0f

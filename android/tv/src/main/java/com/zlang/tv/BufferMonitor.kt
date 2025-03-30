@@ -1,5 +1,6 @@
 package com.zlang.tv
 
+import android.app.Activity
 import org.json.JSONObject
 import android.os.Bundle
 import android.os.Handler
@@ -22,7 +23,7 @@ import android.os.HandlerThread
 import androidx.media3.exoplayer.ExoPlayer
 
 
-class BufferMonitor() {
+class BufferMonitor(private val activity: Activity?, private val player: ExoPlayer?) {
     private var lastReportTime = 0L
     private var lastBufferTime = 0
     private val handlerThread = HandlerThread("BufferHandlerThread")
@@ -32,9 +33,9 @@ class BufferMonitor() {
     private var monitorHandler : Handler? = null
     private val monitorRunnable = object : Runnable {
         override fun run() {
-            VideoPlayerActivity.instance?.runOnUiThread {
-                val currentPos = VideoPlayerActivity.instance?.player?.currentPosition
-                val bufferedPos = VideoPlayerActivity.instance?.player?.bufferedPosition
+            activity?.runOnUiThread {
+                val currentPos = player?.currentPosition
+                val bufferedPos = player?.bufferedPosition
                 if (currentPos != null && bufferedPos != null) {
                     bufferTime = (bufferedPos - currentPos).toInt()
                 } else {

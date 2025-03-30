@@ -413,6 +413,7 @@ class FileListActivity : ComponentActivity() {
         }
         
         val openOption = dialog.findViewById<TextView>(R.id.openOption)
+        val openFfmpegOption = dialog.findViewById<TextView>(R.id.openFfmpegOption)
         val encodeOption = dialog.findViewById<TextView>(R.id.encodeOption)
         val aacEncodeOption = dialog.findViewById<TextView>(R.id.aacEncodeOption)
         
@@ -440,6 +441,25 @@ class FileListActivity : ComponentActivity() {
             }
         }
 
+        openFfmpegOption.setOnClickListener {
+            dialog.dismiss()
+            //playVideo(videoPath)
+            // 检查是否有播放记录
+            val record = unfinishedRecords.find { it.path == videoPath }
+            if (record != null) {
+                if (record.isCompleted()) {
+                    // 如果已经播放完成，从头开始播放
+                    playVideo(videoPath, 0, true)
+                } else {
+                    // 从上次播放位置继续播放
+                    playVideo(videoPath, record.position, true)
+                }
+            } else {
+                // 没有播放记录，从头开始播放
+                playVideo(videoPath, 0, true)
+            }
+        }
+
         encodeOption.setOnClickListener {
             dialog.dismiss()
             sendEncodeCommand(videoPath)
@@ -454,9 +474,18 @@ class FileListActivity : ComponentActivity() {
     }
     
     private fun playVideo(path: String, startPosition: Long = 0, ffmpeg: Boolean) {
-        // 启动VideoPlayerActivity播放视频
-        val intent = VideoPlayerActivity.createIntent(this, path, startPosition, serverIp, ffmpeg)
-        startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+        if (ffmpeg)
+        {
+            val intent =
+                FFmpegVideoPlayerActivity.createIntent(this, path, startPosition, serverIp, true)
+            startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+        }
+        else {
+            // 启动VideoPlayerActivity播放视频
+            val intent =
+                VideoPlayerActivity.createIntent(this, path, startPosition, serverIp, ffmpeg)
+            startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+        }
     }
     
     private fun sendEncodeCommand(videoPath: String) {

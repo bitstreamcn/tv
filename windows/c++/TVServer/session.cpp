@@ -398,8 +398,8 @@ void Session::control_fun()
                     media = nullptr;
                 }
                 clear_queue();
-                media = new Media(path, *this);
-                media->Seek(pts);
+                media = new Media(path, *this, ffmpeg);
+                media->Seek(ffmpeg? pts * AV_TIME_BASE :pts);
                 media->Start(!ffmpeg);
                 response["status"] = "success";
                 response["message"] = "";
@@ -424,8 +424,8 @@ void Session::control_fun()
                     media = nullptr;
                 }
                 clear_queue();
-                media = new Media(path, *this);
-                media->Seek(pts);
+                media = new Media(path, *this, ffmpeg);
+                media->Seek(ffmpeg ? pts * AV_TIME_BASE : pts);
                 media->Start(!ffmpeg);
                 response["status"] = "success";
                 response["message"] = "";

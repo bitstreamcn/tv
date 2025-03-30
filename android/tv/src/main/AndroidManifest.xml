@@ -64,6 +64,11 @@
             android:theme="@style/Theme.Tv.Fullscreen"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="false" />
+        <activity
+            android:name=".FFmpegVideoPlayerActivity"
+            android:theme="@style/Theme.Tv.Fullscreen"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:exported="false" />
             
         <activity
             android:name=".FileListActivity"

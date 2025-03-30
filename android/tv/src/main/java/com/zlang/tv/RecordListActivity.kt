@@ -141,8 +141,15 @@ class RecordListActivity : ComponentActivity() {
             val intent = SmbVideoPlayerActivity.createIntent(this, path, startPosition, serverIp)
             startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
         }else{
-            val intent = VideoPlayerActivity.createIntent(this, path, startPosition, serverIp, ffmpeg)
-            startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+            if (ffmpeg) {
+                val intent =
+                    FFmpegVideoPlayerActivity.createIntent(this, path, startPosition, serverIp, true)
+                startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+            }else{
+                val intent =
+                    VideoPlayerActivity.createIntent(this, path, startPosition, serverIp, false)
+                startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+            }
         }
     }
 
@@ -159,7 +166,7 @@ class RecordListActivity : ComponentActivity() {
             return
         }
 
-        playVideo(path, startPosition)
+        playVideo(path, startPosition, record.ffmpeg)
     }
 
 

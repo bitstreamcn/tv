@@ -124,8 +124,6 @@ class MainActivity : ComponentActivity() {
     private var autoHideRunnable: Runnable? = null
     private val AUTO_HIDE_DELAY = 10000L // 10秒
 
-    private lateinit var bufferMonitor: BufferMonitor
-
     val pathMap = mutableMapOf("" to 0)
 
     private var screenshotHandler = Handler(Looper.getMainLooper())
@@ -389,76 +387,9 @@ class MainActivity : ComponentActivity() {
         // 删除播放器相关的初始化
         connectToServerWithRetry()
 
-        bufferMonitor = BufferMonitor().apply {
-            start()
-        }
-
         LogcatRunner.getInstance().config(LogcatRunner.LogConfig.builder().write2File(true)).start()
     }
 
-    private fun setupPlayer() {
-        try {
-            player?.release()
-
-            // 创建自定义 DataSource.Factory
-            val dataSourceFactory = TcpDataSource.Factory(serverIp)
-
-            // 创建 MediaSource.Factory
-            val mediaSourceFactory = DefaultMediaSourceFactory(this)
-                .setDataSourceFactory(dataSourceFactory)
-
-            // 配置 ExoPlayer
-            val trackSelector = DefaultTrackSelector(this).apply {
-                setParameters(buildUponParameters().setMaxVideoSizeSd())
-            }
-
-            val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(
-                    2000,//DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
-                    60000,//DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
-                    1000,//DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
-                    2000//DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
-                )
-                .build()
-
-
-            player = ExoPlayer.Builder(this)
-                .setMediaSourceFactory(mediaSourceFactory)
-                .setTrackSelector(trackSelector)
-                .setLoadControl(loadControl)
-                .build()
-                .apply {
-                    addListener(playerListener)
-                    // 设置默认的播放参数
-                    playWhenReady = true
-                    repeatMode = Player.REPEAT_MODE_OFF
-                }
-
-            playerView.player = player
-
-            // 配置播放器参数
-            playerView.useController = false // 禁用默认控制器
-            // 禁用所有按键事件
-            playerView.setUseController(false)  // 确保控制器不响应按键
-            // 禁用进度条显示
-            playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
-            playerView.setShowNextButton(false)
-            playerView.setShowPreviousButton(false)
-            playerView.setShowFastForwardButton(false)
-            playerView.setShowRewindButton(false)
-            // 禁用按键显示进度条
-            playerView.setControllerHideOnTouch(false)
-            playerView.setControllerAutoShow(false)
-
-            player?.repeatMode = Player.REPEAT_MODE_ONE
-
-            player?.addListener(playerListener)
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error setting up player", e)
-            showToast("播放器初始化失败")
-        }
-    }
 
     private val playerListener = object : Player.Listener {
         override fun onPlayerError(error: PlaybackException) {
@@ -583,7 +514,7 @@ class MainActivity : ComponentActivity() {
         player?.release()
         player = null
         progressUpdateHandler?.removeCallbacks(progressUpdateRunnable ?: return)
-        bufferMonitor.stop()
+
         stopVideoStream()
         socket?.close()
         reader?.close()
@@ -949,8 +880,17 @@ class MainActivity : ComponentActivity() {
             val intent = SmbVideoPlayerActivity.createIntent(this, path, startPosition, serverIp)
             startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
         }else{
-            val intent = VideoPlayerActivity.createIntent(this, path, startPosition, serverIp, ffmpeg)
-            startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+            if (ffmpeg)
+            {
+                val intent =
+                    FFmpegVideoPlayerActivity.createIntent(this, path, startPosition, serverIp, true)
+                startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+            }
+            else {
+                val intent =
+                    VideoPlayerActivity.createIntent(this, path, startPosition, serverIp, ffmpeg)
+                startActivityForResult(intent, REQUEST_CODE_VIDEO_PLAYER)
+            }
         }
     }
 
@@ -1260,7 +1200,8 @@ class MainActivity : ComponentActivity() {
                             duration = recordObj.getLong("duration"),
                             position = recordObj.getLong("position"),
                             lastPlayTime = recordObj.getLong("lastPlayTime"),
-                            thumbnailPath = if (thumbnailPath.isEmpty()) null else thumbnailPath
+                            thumbnailPath = if (thumbnailPath.isEmpty()) null else thumbnailPath,
+                            ffmpeg = recordObj.optBoolean("ffmpeg")
                         )
 
                         unfinishedRecords.add(record)
@@ -1286,7 +1227,8 @@ class MainActivity : ComponentActivity() {
                             duration = recordObj.getLong("duration"),
                             position = recordObj.getLong("position"),
                             lastPlayTime = recordObj.getLong("lastPlayTime"),
-                            thumbnailPath = if (thumbnailPath.isEmpty()) null else thumbnailPath
+                            thumbnailPath = if (thumbnailPath.isEmpty()) null else thumbnailPath,
+                            ffmpeg = recordObj.optBoolean("ffmpeg")
                         )
 
                         finishedRecords.add(record)
@@ -1391,13 +1333,13 @@ class MainActivity : ComponentActivity() {
             // 重新创建适配器以确保点击事件正确处理
             unfinishedRecyclerAdapter = VideoRecordAdapter(displayUnfinishedRecords) { record ->
                 Log.d("Records", "点击未完成记录: ${record.path}, 位置: ${record.position}/${record.duration}")
-                playVideo(record.path, record.position)
+                playVideo(record.path, record.position, record.ffmpeg)
             }
             unfinishedRecyclerView.adapter = unfinishedRecyclerAdapter
 
             finishedRecyclerAdapter = VideoRecordAdapter(displayFinishedRecords) { record ->
                 Log.d("Records", "点击已完成记录: ${record.path}, 位置: ${record.position}/${record.duration}")
-                playVideo(record.path, 0)  // 已完成记录从头开始播放
+                playVideo(record.path, 0, record.ffmpeg)  // 已完成记录从头开始播放
             }
             finishedRecyclerView.adapter = finishedRecyclerAdapter
 
@@ -1739,6 +1681,7 @@ class MainActivity : ComponentActivity() {
                 put("position", record.position)
                 put("lastPlayTime", record.lastPlayTime)
                 put("thumbnailPath", record.thumbnailPath ?: "")
+                put("ffmpeg", record.ffmpeg)
             }
             unfinishedJsonArray.put(recordObj)
         }
@@ -1752,6 +1695,7 @@ class MainActivity : ComponentActivity() {
                 put("position", record.position)
                 put("lastPlayTime", record.lastPlayTime)
                 put("thumbnailPath", record.thumbnailPath ?: "")
+                put("ffmpeg", record.ffmpeg)
             }
             finishedJsonArray.put(recordObj)
         }
@@ -1765,7 +1709,7 @@ class MainActivity : ComponentActivity() {
         Log.d("Records", "保存播放记录 - 未完成: ${unfinishedRecords.size}, 已完成: ${finishedRecords.size}")
     }
 
-    fun updatePlayRecord(path: String, position: Long, videoDuration: Long) {
+    fun updatePlayRecord(path: String, position: Long, videoDuration: Long, ffmpeg: Boolean = false) {
         Log.d("Records", "更新播放记录: path=$path, position=$position, duration=$videoDuration")
 
         // 先检查并从两个列表中移除该路径的记录
@@ -1787,6 +1731,7 @@ class MainActivity : ComponentActivity() {
             existingRecord.position = position
             existingRecord.duration = videoDuration
             existingRecord.lastPlayTime = System.currentTimeMillis()
+            existingRecord.ffmpeg = ffmpeg
 
             // 根据完成状态添加到相应列表
             if (existingRecord.isCompleted()) {
@@ -1809,7 +1754,8 @@ class MainActivity : ComponentActivity() {
                 name = File(path).name,
                 duration = videoDuration,
                 position = position,
-                lastPlayTime = System.currentTimeMillis()
+                lastPlayTime = System.currentTimeMillis(),
+                ffmpeg = ffmpeg
             )
 
             // 根据完成状态添加到相应列表

@@ -20,10 +20,17 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.datasource.TransferListener
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.PlayerId
+import androidx.media3.exoplayer.drm.DrmSessionEventListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.MediaPeriod
+import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.exoplayer.source.MediaSourceEventListener
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.exoplayer.upstream.Allocator
 import androidx.media3.ui.PlayerView
 import org.json.JSONObject
 import java.io.File
@@ -105,6 +112,8 @@ class VideoPlayerActivity : ComponentActivity() {
     // 进度更新
     private var progressUpdateHandler: Handler? = null
     private var progressUpdateRunnable: Runnable? = null
+
+    private var bufferMonitor: BufferMonitor? = null
 
 
     private lateinit var timeTextView: TextView
@@ -211,6 +220,7 @@ class VideoPlayerActivity : ComponentActivity() {
     
     private fun setupPlayer() {
         try {
+            bufferMonitor?.stop()
             player?.release()
 
 
@@ -243,6 +253,9 @@ class VideoPlayerActivity : ComponentActivity() {
 
             player?.repeatMode = Player.REPEAT_MODE_OFF
 
+            bufferMonitor = BufferMonitor(this, player).apply {
+                start()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error setting up player", e)
             showToast("播放器初始化失败")
@@ -494,11 +507,10 @@ class VideoPlayerActivity : ComponentActivity() {
         return millis / 1000.0
     }
 
-
     private fun startPlaying() {
         try {
             // 1. 创建 DataSource.Factory，传入serverIp
-            val dataSourceFactory = TcpDataSource.Factory(serverIp)
+            val dataSourceFactory = TcpDataSource.Factory(serverIp, isFfmpeg)
 
             // 2. 创建 MediaSource
             val mediaItem = MediaItem.Builder()
@@ -741,7 +753,7 @@ class VideoPlayerActivity : ComponentActivity() {
             if (videoPath.isEmpty()) return
             
             //MainActivity.instance?.updatePlayRecord(videoPath, position, videoDuration)
-            MainActivity.instance?.updatePlayRecord(videoPath, player?.currentPosition?:0, player?.duration?:0)
+            MainActivity.instance?.updatePlayRecord(videoPath, player?.currentPosition?:0, player?.duration?:0, isFfmpeg)
         } catch (e: Exception) {
             Log.e(TAG, "保存播放记录时出错", e)
         }
@@ -793,6 +805,8 @@ class VideoPlayerActivity : ComponentActivity() {
     
     override fun onDestroy() {
         super.onDestroy()
+
+        bufferMonitor?.stop()
         // 释放播放器资源
         player?.release()
         player = null

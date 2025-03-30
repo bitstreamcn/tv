@@ -115,25 +115,25 @@ dependencies {
     implementation("androidx.media3:media3-ui-leanback:$media3_version")
 
     // For exposing and controlling media sessions
-    //implementation("androidx.media3:media3-session:$media3_version")
+    implementation("androidx.media3:media3-session:$media3_version")
 
     // For extracting data from media containers
-    //implementation("androidx.media3:media3-extractor:$media3_version")
+    implementation("androidx.media3:media3-extractor:$media3_version")
 
     // For integrating with Cast
-    //implementation("androidx.media3:media3-cast:$media3_version")
+    implementation("androidx.media3:media3-cast:$media3_version")
 
     // For scheduling background operations using Jetpack Work's WorkManager with ExoPlayer
-    //implementation("androidx.media3:media3-exoplayer-workmanager:$media3_version")
+    implementation("androidx.media3:media3-exoplayer-workmanager:$media3_version")
 
     // For transforming media files
-    //implementation("androidx.media3:media3-transformer:$media3_version")
+    implementation("androidx.media3:media3-transformer:$media3_version")
 
     // For applying effects on video frames
-    //implementation("androidx.media3:media3-effect:$media3_version")
+    implementation("androidx.media3:media3-effect:$media3_version")
 
     // For muxing media files
-    //implementation("androidx.media3:media3-muxer:$media3_version")
+    implementation("androidx.media3:media3-muxer:$media3_version")
 
     // Utilities for testing media components (including ExoPlayer components)
     //implementation("androidx.media3:media3-test-utils:$media3_version")
@@ -141,17 +141,17 @@ dependencies {
     //implementation("androidx.media3:media3-test-utils-robolectric:$media3_version")
 
     // Common functionality for reading and writing media containers
-    //implementation("androidx.media3:media3-container:$media3_version")
+    implementation("androidx.media3:media3-container:$media3_version")
     // Common functionality for media database components
-    //implementation("androidx.media3:media3-database:$media3_version")
+    implementation("androidx.media3:media3-database:$media3_version")
     // Common functionality for media decoders
-    //implementation("androidx.media3:media3-decoder:$media3_version")
+    implementation("androidx.media3:media3-decoder:$media3_version")
     // Common functionality for loading data
-    //implementation("androidx.media3:media3-datasource:$media3_version")
+    implementation("androidx.media3:media3-datasource:$media3_version")
     // Common functionality used across multiple media libraries
-    //implementation("androidx.media3:media3-common:$media3_version")
+    implementation("androidx.media3:media3-common:$media3_version")
     // Common Kotlin-specific functionality
-    //implementation("androidx.media3:media3-common-ktx:$media3_version")
+    implementation("androidx.media3:media3-common-ktx:$media3_version")
 
 
     implementation(libs.androidx.recyclerview)

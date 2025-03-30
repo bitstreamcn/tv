@@ -7,23 +7,25 @@
 #include "session.h"
 
 
-Media::Media(std::string inut_file, Session& s)
+Media::Media(std::string inut_file, Session& s, bool ffmpeg)
     :session(s)
 {
     path_file = inut_file;
-    /*
-    if (avformat_open_input(&input_fmt_ctx, inut_file.c_str(), NULL, NULL) != 0)
+    if (ffmpeg)
     {
-        std::cout << "avformat_open_input fail" << std::endl;
-        return;
+        if (avformat_open_input(&input_fmt_ctx, inut_file.c_str(), NULL, NULL) != 0)
+        {
+            std::cout << "avformat_open_input fail" << std::endl;
+            return;
+        }
+
+        if (avformat_find_stream_info(input_fmt_ctx, NULL) < 0)
+        {
+            std::cout << "avformat_find_stream_info fail" << std::endl;
+            avformat_close_input(&input_fmt_ctx);
+            return;
+        }
     }
-    if (avformat_find_stream_info(input_fmt_ctx, NULL) < 0)
-    {
-        std::cout << "avformat_find_stream_info fail" << std::endl;
-        avformat_close_input(&input_fmt_ctx);
-        return;
-    }
-    */
     // 查找视频和音频流
     /*
     video_idx = av_find_best_stream(input_fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
@@ -58,6 +60,9 @@ double Media::Duration()
     AVStream* in_stream = input_fmt_ctx->streams[audio_idx];
     return static_cast<double>(in_stream->duration) * av_q2d(in_stream->time_base);
     */
+    if (filesize > 0) {
+        return filesize * 1.0;
+    }
     if (nullptr == input_fmt_ctx)
     {
         return 0;
@@ -780,6 +785,7 @@ bool Media::MainFileCallback()
 
     // 获取文件大小
     std::streamsize filesize = file.tellg();
+    this->filesize = filesize;
     file.seekg(0, std::ios::beg); // 重置文件指针到文件开头
 
     std::cout << "filesize：" << filesize << std::endl;
@@ -1322,7 +1328,7 @@ bool Media::MainPipeCallback()
 
     // 构建 ffmpeg 命令
     //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string((uint32_t)seek_target_ / 1000000) + " -i \"" + pathgb2312 + "\" -c:v libx264 -preset faster -tune fastdecode -maxrate 1.5M -b:v 1.5M -c:a aac -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-    std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string((uint32_t)seek_target_ / 1000000) + " -i \"" + pathgb2312 + "\" -c copy -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+    std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string((uint32_t)seek_target_ / 1000000) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
 
     std::cout << ffmpegCommand << std::endl;
 

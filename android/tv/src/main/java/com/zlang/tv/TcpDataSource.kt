@@ -8,7 +8,7 @@ import androidx.media3.datasource.DataSpec
 import org.json.JSONObject
 import java.io.IOException
 
-class TcpDataSource(serverIp: String) : BaseDataSource(/* isNetwork= */ true) {
+class TcpDataSource(serverIp: String, ffmpeg: Boolean) : BaseDataSource(/* isNetwork= */ true) {
 
     private external fun nativeCreate(): Long
     private external fun nativeConnect(handle: Long, ip: String, port: Int): Boolean
@@ -19,6 +19,7 @@ class TcpDataSource(serverIp: String) : BaseDataSource(/* isNetwork= */ true) {
     private var isOpen = false
     private var currentDataSpec: DataSpec? = null
     private val serverIp = serverIp
+    private val ffmpeg = ffmpeg
 
     companion object {
         var pause = false
@@ -49,18 +50,26 @@ class TcpDataSource(serverIp: String) : BaseDataSource(/* isNetwork= */ true) {
 
         currentDataSpec = dataSpec
 
-        val _uri = dataSpec.uri
-        Log.d("TcpDataSource", _uri.toString())
-        startVideo(_uri.toString(), dataSpec.position)
-
         try {
-            transferInitializing(dataSpec)
+            val _uri = dataSpec.uri
+            Log.d("TcpDataSource", _uri.toString())
+            val size = if (ffmpeg)
+            {
+                0
+            }
+            else
+            {
+                startVideo(_uri.toString(), dataSpec.position)
+            }
+
             if (!connect(serverIp, 25314)) {
                 throw IOException("Failed to connect to server")
             }
             isOpen = true
-            transferStarted(dataSpec)
-            return C.LENGTH_UNSET.toLong()
+            if (size <= 0 || ffmpeg){
+                return C.LENGTH_UNSET.toLong()
+            }
+            return size
         } catch (e: Exception) {
             throw IOException("Error opening TcpDataSource", e)
         }
@@ -85,15 +94,11 @@ class TcpDataSource(serverIp: String) : BaseDataSource(/* isNetwork= */ true) {
                 zeroCount = 0
             }
             } else if (bytesRead < length) {
-            noEnoughCount++
+                noEnoughCount++
                 if (noEnoughCount >= 100) {
                     //Log.d(TAG, "TcpDataSource read noEnoughCount: $noEnoughCount")
-                noEnoughCount = 0
-            }
-            }
-
-            if (bytesRead > 0) {
-                bytesTransferred(bytesRead)
+                    noEnoughCount = 0
+                }
             }
 
             return if (bytesRead >= 0) bytesRead else C.RESULT_END_OF_INPUT
@@ -109,15 +114,17 @@ class TcpDataSource(serverIp: String) : BaseDataSource(/* isNetwork= */ true) {
             isOpen = false
             release()
             currentDataSpec = null
-            transferEnded()
         } catch (e: Exception) {
             Log.e(TAG, "Error closing source", e)
         }
     }
 
-    class Factory(serverIp : String) : DataSource.Factory {
+    class Factory(serverIp : String, ffmpeg: Boolean) : DataSource.Factory {
         val serverIp = serverIp
-        override fun createDataSource(): DataSource = TcpDataSource(serverIp)
+        val ffmpeg = ffmpeg
+        override fun createDataSource(): DataSource {
+             return TcpDataSource(serverIp, ffmpeg)
+        }
     }
 
     private fun formatTimeForServer(millis: Long): Double {
@@ -126,17 +133,17 @@ class TcpDataSource(serverIp: String) : BaseDataSource(/* isNetwork= */ true) {
     }
 
 
-    private fun startVideo(currentVideoPath:String, position: Long) {
+    private fun startVideo(currentVideoPath:String, position: Long) : Long {
         Log.d("PlayVideo", "调用startVideoFromPosition:  视频路径=$currentVideoPath")
 
         val command = JSONObject().apply {
             put("action", "stream")
             put("path", currentVideoPath)
             put("start_time", position)
-            put("ffmpeg", false)
+            put("ffmpeg", ffmpeg)
         }
 
-        Thread {
+        //Thread {
             try {
                 val commandStr = command.toString()
                 Log.d("ServerComm", "发送视频定位请求: $commandStr")
@@ -144,7 +151,8 @@ class TcpDataSource(serverIp: String) : BaseDataSource(/* isNetwork= */ true) {
                 Log.d("ServerComm", "定位请求接收数据: $response")
 
                 if (response == null) {
-                    return@Thread
+                    //return@Thread 0L
+                    return 0L
                 }
 
                 val jsonResponse = response
@@ -152,6 +160,7 @@ class TcpDataSource(serverIp: String) : BaseDataSource(/* isNetwork= */ true) {
                 if (jsonResponse.getString("status") == "success") {
                     val durationSeconds = jsonResponse.optDouble("duration", 0.0)
                     Log.d("ServerComm", "视频时长(秒): $durationSeconds")
+                    return durationSeconds.toLong()
                 } else {
                     val errorMessage = jsonResponse.optString("message", "未知错误")
                     Log.e("PlayVideo", "调整视频位置失败: $errorMessage")
@@ -159,7 +168,8 @@ class TcpDataSource(serverIp: String) : BaseDataSource(/* isNetwork= */ true) {
             } catch (e: Exception) {
                 Log.e("PlayVideo", "视频定位出错", e)
             }
-        }.start()
+        //}.start()
+        return 0L
     }
 
     private fun stopVideoStream() {
@@ -168,7 +178,7 @@ class TcpDataSource(serverIp: String) : BaseDataSource(/* isNetwork= */ true) {
             put("action", "stop_stream")
         }
 
-        Thread {
+        //Thread {
             try {
                 val commandStr = command.toString()
                 Log.d("ServerComm", "发送数据: $commandStr")
@@ -179,12 +189,13 @@ class TcpDataSource(serverIp: String) : BaseDataSource(/* isNetwork= */ true) {
                 Log.d("ServerComm", "接收数据: $response")
 
                 if (response == null) {
-                    return@Thread
+                    //return@Thread
+                    return
                 }
             } catch (e: Exception) {
                 Log.e("VideoPlayerActivity", "Error stopping video stream", e)
             }
-        }.start()
+        //}.start()
     }
 
 

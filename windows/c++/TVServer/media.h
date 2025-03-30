@@ -104,7 +104,7 @@ class Session;
 
 class Media {
 public:
-    Media(std::string inut_file, Session & s);
+    Media(std::string inut_file, Session & s, bool ffmpeg);
     ~Media();
 
     bool Start(bool rawdata = false);
@@ -199,4 +199,5 @@ private:
     volatile int64_t audio_last_pts = AV_NOPTS_VALUE;
 
     std::ifstream file;
+    int64_t filesize = 0;
 };

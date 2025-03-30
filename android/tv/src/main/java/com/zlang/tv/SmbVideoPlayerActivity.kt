@@ -129,6 +129,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
     private var progressUpdateHandler: Handler? = null
     private var progressUpdateRunnable: Runnable? = null
 
+    private  var bufferMonitor: BufferMonitor? = null
 
     private lateinit var timeTextView: TextView
     private val handler = Handler(Looper.getMainLooper())
@@ -247,6 +248,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
 
     private fun setupPlayer() {
         try {
+            bufferMonitor?.stop()
             player?.release()
 
 
@@ -283,6 +285,10 @@ class SmbVideoPlayerActivity : ComponentActivity() {
             playerView.setUseController(true)  // 确保控制器不响应按键
 
             player?.repeatMode = Player.REPEAT_MODE_OFF
+
+            bufferMonitor = BufferMonitor(this, player).apply {
+                start()
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Error setting up player", e)
@@ -1039,6 +1045,8 @@ class SmbVideoPlayerActivity : ComponentActivity() {
     
     override fun onDestroy() {
         super.onDestroy()
+
+        bufferMonitor?.stop()
         // 释放播放器资源
         player?.release()
         player = null

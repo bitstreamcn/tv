@@ -1,3 +1,2 @@
 ﻿  media.cpp
-J:\tv\windows\c++\TVServer\media.cpp(1559,20): warning C4244: “=”: 从“double”转换到“volatile int64_t”，可能丢失数据
   TVServer.vcxproj -> J:\tv\windows\c++\TVServer\x64\Debug\TVServer.exe

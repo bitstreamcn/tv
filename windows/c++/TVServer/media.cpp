@@ -11,6 +11,7 @@ Media::Media(std::string inut_file, Session& s)
     :session(s)
 {
     path_file = inut_file;
+    /*
     if (avformat_open_input(&input_fmt_ctx, inut_file.c_str(), NULL, NULL) != 0)
     {
         std::cout << "avformat_open_input fail" << std::endl;
@@ -22,8 +23,9 @@ Media::Media(std::string inut_file, Session& s)
         avformat_close_input(&input_fmt_ctx);
         return;
     }
+    */
     // 查找视频和音频流
-    //*
+    /*
     video_idx = av_find_best_stream(input_fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
     audio_idx = av_find_best_stream(input_fmt_ctx, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
 
@@ -1478,10 +1480,12 @@ bool Media::MainPipeCallback()
 
 bool Media::Start(bool rawdata)
 {
+    /*
     if (nullptr == input_fmt_ctx)
     {
         return false;
     }
+    */
     if (!stop_flag) {
         return true;
     }
@@ -1556,7 +1560,7 @@ bool Media::Seek(double seconds)
     seek_target_ = seconds / av_q2d(in_stream->time_base);
     */
     //seek_target_ = (int64_t)(seconds * AV_TIME_BASE);
-    seek_target_ = seconds;
+    seek_target_ = (int64_t)seconds;
 
     //video_start_time = AV_NOPTS_VALUE;
     //audio_start_time = seek_target_;

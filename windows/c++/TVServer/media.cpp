@@ -1,7 +1,8 @@
 #include "media.h"
 #include "encode.h"
 
-
+#include <windows.h>
+#include <tlhelp32.h>
 #include <stdio.h>
 #include <inttypes.h>
 #include "session.h"
@@ -1322,6 +1323,78 @@ bool Media::MainPipeThread(Media* This)
     return This->MainPipeCallback();
 }
 
+// 递归终止子进程（使用进程快照方式）
+void TerminateChildProcesses(DWORD parentPid) {
+    PROCESSENTRY32 pe = { sizeof(PROCESSENTRY32) };
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+    if (hSnapshot == INVALID_HANDLE_VALUE) return;
+
+    if (Process32First(hSnapshot, &pe)) {
+        do {
+            if (pe.th32ParentProcessID == parentPid) {
+                HANDLE hChild = OpenProcess(PROCESS_TERMINATE, FALSE, pe.th32ProcessID);
+                if (hChild) {
+                    TerminateProcess(hChild, 1);
+                    CloseHandle(hChild);
+                }
+                TerminateChildProcesses(pe.th32ProcessID); // 递归终止
+            }
+        } while (Process32Next(hSnapshot, &pe));
+    }
+    CloseHandle(hSnapshot);
+}
+
+// 优雅终止尝试
+bool SendCtrlC(HANDLE hProcess) {
+    if (!FreeConsole()) return false;
+
+    DWORD pid = GetProcessId(hProcess);
+    if (!AttachConsole(pid)) return false;
+
+    bool success = false;
+    if (SetConsoleCtrlHandler(nullptr, true)) {
+        success = GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+        Sleep(100); // 给进程处理时间
+        FreeConsole();
+    }
+    return success;
+}
+
+// 主终止函数（直接使用CreateProcess返回的句柄）
+void TerminateProcessTree(PROCESS_INFORMATION& pi) {
+    const DWORD waitTimeout = 200;
+    const int maxAttempts = 3;
+
+    // 第一阶段：优雅终止
+    /*
+    if (SendCtrlC(pi.hProcess)) {
+        if (WaitForSingleObject(pi.hProcess, waitTimeout) == WAIT_OBJECT_0) {
+            goto cleanup;
+        }
+    }
+    */
+    // 第二阶段：终止子进程后重试
+    TerminateChildProcesses(pi.dwProcessId);
+    TerminateProcess(pi.hProcess, 1);
+    if (WaitForSingleObject(pi.hProcess, waitTimeout) == WAIT_OBJECT_0) {
+        goto cleanup;
+    }
+
+    // 第三阶段：强制终止
+    for (int i = 0; i < maxAttempts; ++i) {
+        TerminateProcess(pi.hProcess, 1);
+        if (WaitForSingleObject(pi.hProcess, 50) == WAIT_OBJECT_0) break;
+    }
+
+cleanup:
+    // 确保关闭原始句柄
+    CloseHandle(pi.hProcess);
+    //CloseHandle(pi.hThread);
+    pi.hProcess = pi.hThread = nullptr;
+}
+
+
 bool Media::MainPipeCallback()
 {
     std::string pathgb2312 = UTF8ToGB2312(path_file);
@@ -1470,17 +1543,20 @@ bool Media::MainPipeCallback()
     if (!tempBuffer.empty()) {
         std::cerr << "WARNING: Incomplete TS packet (" << tempBuffer.size() << " bytes)\n";
     }
-
-    CloseHandle(hReadPipe);
+  
     // 强行终止进程
+    /*
     if (!TerminateProcess(pi.hProcess, 0)) {
         std::cerr << "TerminateProcess failed: " << GetLastError() << std::endl;
     }
     else {
         std::cout << "Process terminated successfully." << std::endl;
     }
-    WaitForSingleObject(pi.hProcess, INFINITE);
-    CloseHandle(pi.hProcess);
+    */
+    TerminateProcessTree(pi);
+    //WaitForSingleObject(pi.hProcess, INFINITE);
+    //CloseHandle(pi.hProcess);
+    CloseHandle(hReadPipe);
     return true;
 }
 

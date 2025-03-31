@@ -190,7 +190,9 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
 
         updateTime()
         handler.postDelayed(updateTimeRunnable, 1000)
-        handler.postDelayed(retryRunnable, 5000)
+        handler.postDelayed(retryRunnable, 10000)
+
+
     }
 
     private fun stopVideoStream() {
@@ -423,9 +425,8 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
                         Log.d("PlayVideo", "定位请求成功，重新设置播放器")
                         setupPlayer()
                         startPlaying()
-
                         // 将焦点设置到activity上，确保能接收按键事件
-                        this.window.decorView.rootView.clearFocus()
+                        //this.window.decorView.rootView.clearFocus()
                         Log.d("PlayVideo", "从指定位置播放时已将焦点设置到Activity上")
                     }
                 } else {
@@ -569,7 +570,7 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
         startProgressUpdate()
 
         // 将焦点设置到activity上，确保能接收按键事件
-        this.window.decorView.rootView.clearFocus()
+        //this.window.decorView.rootView.clearFocus()
         Log.d("PlayVideo", "进度条隐藏时已将焦点设置到Activity上")
     }
 
@@ -778,9 +779,14 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
                             Log.d("PlayVideo", "定位请求成功，重新设置播放器")
                             setupPlayer()
                             startPlaying()
-
+                            currentPlaybackPosition = startPosition
+                            updateTimeText(currentPlaybackPosition, videoDuration)
+                            val progress =
+                                ((currentPlaybackPosition.toFloat() / videoDuration) * 100).toInt()
+                            videoSeekBar.progress = progress
+                            showProgressBar()
                             // 将焦点设置到activity上，确保能接收按键事件
-                            this.window.decorView.rootView.clearFocus()
+                            //this.window.decorView.rootView.clearFocus()
                             Log.d("PlayVideo", "从指定位置播放时已将焦点设置到Activity上")
                         }
                     } else {

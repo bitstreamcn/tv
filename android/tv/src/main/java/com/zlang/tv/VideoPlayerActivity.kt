@@ -192,7 +192,7 @@ class VideoPlayerActivity : ComponentActivity() {
 
         updateTime()
         handler.postDelayed(updateTimeRunnable, 1000)
-        handler.postDelayed(retryRunnable, 5000)
+        handler.postDelayed(retryRunnable, 10000)
     }
 
 

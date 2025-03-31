@@ -33,6 +33,9 @@ class BufferMonitor(private val activity: Activity?, private val player: ExoPlay
     private var monitorHandler : Handler? = null
     private val monitorRunnable = object : Runnable {
         override fun run() {
+            if (null == activity || player == null){
+                return
+            }
             activity?.runOnUiThread {
                 val currentPos = player?.currentPosition
                 val bufferedPos = player?.bufferedPosition
@@ -71,6 +74,7 @@ class BufferMonitor(private val activity: Activity?, private val player: ExoPlay
 
     fun stop() {
         monitorHandler?.removeCallbacks(monitorRunnable)
+        handlerThread.quitSafely()
     }
 
     private fun sendStreamCommand(action: String, bufferTime: Int) {

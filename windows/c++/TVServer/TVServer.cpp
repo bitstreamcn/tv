@@ -21,6 +21,8 @@
 std::mutex session_mutex;
 std::map<uint32_t, Session*> session_map;
 
+bool exit_program = false;
+
 // 控制端口处理线程
 void control_thread(SOCKET ctrl_sock) {
     // 设置读取超时时间为 5 秒
@@ -97,7 +99,7 @@ void data_thread(SOCKET data_sock) {
 void control_listen_thread(SOCKET ctrl_listen) {
     SOCKET ctrl_sock;
     // 等待连接
-    while ((ctrl_sock = accept(ctrl_listen, NULL, NULL)) > 0)
+    while ((ctrl_sock = accept(ctrl_listen, NULL, NULL)) > 0 && !exit_program)
     {
         // 启动线程
         std::thread ctrl_handler(control_thread, ctrl_sock);
@@ -108,7 +110,7 @@ void control_listen_thread(SOCKET ctrl_listen) {
 void data_listen_thread(SOCKET data_listen) {
     SOCKET data_sock;
     // 等待连接
-    while ((data_sock = accept(data_listen, NULL, NULL)) > 0)
+    while ((data_sock = accept(data_listen, NULL, NULL)) > 0 && !exit_program)
     {
         // 启动线程
         std::thread data_handler(data_thread, data_sock);
@@ -119,25 +121,27 @@ void data_listen_thread(SOCKET data_listen) {
 //session管理
 void session_manage_thread()
 {
-    while (true)
+    while (!exit_program)
     {
         //定时检查session是否完全断开，清理超时session
         std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(100)));
     }
 }
 
+SOCKET pingServerSocket = -1;
+
 //广播ping线程
 int ping_thread()
 {
 #define PORT 25325
 #define BUFFER_SIZE 1024
-    SOCKET serverSocket;
+    ;
     struct sockaddr_in serverAddr, clientAddr;
     socklen_t clientAddrLen = sizeof(clientAddr);
     char buffer[BUFFER_SIZE];
 
     // 创建 UDP 套接字
-    if ((serverSocket = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+    if ((pingServerSocket = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
         std::cerr << "Failed to create socket." << std::endl;
         return 1;
     }
@@ -149,17 +153,18 @@ int ping_thread()
     serverAddr.sin_port = htons(PORT);
 
     // 绑定套接字到指定地址和端口
-    if (bind(serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == -1) {
+    if (bind(pingServerSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == -1) {
         std::cerr << "Failed to bind socket." << std::endl;
-        closesocket(serverSocket);
+        closesocket(pingServerSocket);
+        pingServerSocket = -1;
         return 1;
     }
 
     std::cout << "Server is listening on port " << PORT << std::endl;
 
-    while (true) {
+    while (!exit_program) {
         // 接收客户端广播消息
-        int recvLen = recvfrom(serverSocket, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&clientAddr, &clientAddrLen);
+        int recvLen = recvfrom(pingServerSocket, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&clientAddr, &clientAddrLen);
         if (recvLen == -1) {
             std::cerr << "Failed to receive data." << std::endl;
             continue;
@@ -174,20 +179,54 @@ int ping_thread()
 
         // 发送响应消息给客户端
         const char* response = "Server is here!";
-        if (sendto(serverSocket, response, (int)strlen(response), 0, (struct sockaddr*)&clientAddr, clientAddrLen) == -1) {
+        if (sendto(pingServerSocket, response, (int)strlen(response), 0, (struct sockaddr*)&clientAddr, clientAddrLen) == -1) {
             std::cerr << "Failed to send response." << std::endl;
         }
     }
 
     // 关闭套接字
-    closesocket(serverSocket);
+    closesocket(pingServerSocket);
+    pingServerSocket = -1;
     return 0;
+}
+
+SOCKET ctrl_listen = -1;
+SOCKET data_listen = -1;
+
+BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType) {
+    if (dwCtrlType == CTRL_C_EVENT) {
+        std::cout << "\nCustom Ctrl+C handler: Program will exit gracefully." << std::endl;
+        // 执行清理操作
+        if (-1 != ctrl_listen)
+        {
+            closesocket(ctrl_listen);
+            ctrl_listen = -1;
+        }
+        if (-1 != data_listen)
+        {
+            closesocket(data_listen);
+            data_listen = -1;
+        }
+        if (-1 != pingServerSocket)
+        {
+            closesocket(pingServerSocket);
+            pingServerSocket = -1;
+        }
+        exit_program = true;
+        return TRUE; // 阻止默认终止行为
+    }
+    return FALSE;
 }
 
 int main() {
     std::locale commaLocale(std::locale(), new std::numpunct<char>());
     std::cout.imbue(commaLocale);
     std::cout << "TVServer..." << std::endl;
+
+    if (!SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE)) {
+        std::cerr << "Error: Cannot install handler." << std::endl;
+        return 1;
+    }
 
     // 设置 FFmpeg 日志级别为 AV_LOG_QUIET，屏蔽所有日志输出
     av_log_set_level(AV_LOG_ERROR);
@@ -201,7 +240,7 @@ int main() {
     }
 
     // 创建控制端口监听套接字
-    SOCKET ctrl_listen = socket(AF_INET, SOCK_STREAM, 0);
+    ctrl_listen = socket(AF_INET, SOCK_STREAM, 0);
     if (ctrl_listen == INVALID_SOCKET) {
         std::cerr << "Control socket creation failed: " << WSAGetLastError() << std::endl;
         WSACleanup();
@@ -226,7 +265,7 @@ int main() {
     }
 
     // 创建数据端口监听套接字
-    SOCKET data_listen = socket(AF_INET, SOCK_STREAM, 0);
+    data_listen = socket(AF_INET, SOCK_STREAM, 0);
     if (data_listen == INVALID_SOCKET) {
         std::cerr << "Data socket creation failed: " << WSAGetLastError() << std::endl;
         closesocket(ctrl_listen);
@@ -266,9 +305,23 @@ int main() {
     session_thread.join();
     ping_thread.join();
 
-    closesocket(ctrl_listen);
-    closesocket(data_listen);
-
+    if (-1 != ctrl_listen)
+    {
+        closesocket(ctrl_listen);
+        ctrl_listen = -1;
+    }
+    if (-1 != data_listen)
+    {
+        closesocket(data_listen);
+        data_listen = -1;
+    }
+    for (auto it = session_map.begin(); it != session_map.end(); ++it) {
+        //std::cout << "Key: " << it->first << ", Value: " << it->second << std::endl;
+        if (it->second != nullptr)
+        {
+            delete it->second;
+        }
+    }
 
     WSACleanup();
     return 0;

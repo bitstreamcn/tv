@@ -16,40 +16,25 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.TextureView
 import android.view.View
-import android.widget.LinearLayout
-import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
-import androidx.media3.datasource.TransferListener
 import androidx.media3.exoplayer.DefaultLoadControl
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.RenderersFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
-import androidx.media3.extractor.DefaultExtractorsFactory
-import androidx.media3.extractor.ExtractorsFactory
-import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.ui.PlayerView
-import jcifs.CIFSContext
-import jcifs.config.PropertyConfiguration
-import jcifs.context.BaseContext
-import jcifs.context.SingletonContext
-import jcifs.smb.NtlmPasswordAuthenticator
 import jcifs.smb.SmbException
 import jcifs.smb.SmbFile
 import jcifs.smb.SmbFileInputStream
 import org.json.JSONObject
-import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -62,6 +47,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
+
 
 class SmbVideoPlayerActivity : ComponentActivity() {
     companion object {
@@ -85,6 +71,8 @@ class SmbVideoPlayerActivity : ComponentActivity() {
     // UI组件
     private lateinit var playerView: PlayerView
 
+    // 定义状态变量
+    private var isControllerVisible = false
     
     // 播放器状态
     var player: ExoPlayer? = null
@@ -158,7 +146,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
                 setupPlayer()
                 // 开始播放
                 playVideo(currentVideoPath, startPosition)
-                handler.postDelayed(this, 5000)
+                handler.postDelayed(this, 10000)
             }
         }
     }
@@ -227,7 +215,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
 
         updateTime()
         handler.postDelayed(updateTimeRunnable, 1000)
-        handler.postDelayed(retryRunnable, 5000)
+        handler.postDelayed(retryRunnable, 10000)
     }
 
     private fun initializeViews() {
@@ -236,12 +224,25 @@ class SmbVideoPlayerActivity : ComponentActivity() {
         
         // 设置播放器相关
         playerView.keepScreenOn = true
-        
+
+
+        // 显式声明监听器类型
+        playerView.setControllerVisibilityListener(
+            PlayerView.ControllerVisibilityListener { visibility ->
+                isControllerVisible = (visibility === View.VISIBLE)
+            }
+        )
+
+        playerView.setControllerShowTimeoutMs(5000)
 
         // 初始化截图Runnable
         screenshotRunnable = Runnable { takeScreenshot() }
-        
 
+        autoHideRunnable = Runnable {
+            Log.d(TAG, "隐藏控制条")
+            playerView.useController = false // 完全禁用控制条
+            playerView.hideController()
+        }
 
     }
 
@@ -1029,7 +1030,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
 
-        playerView.requestFocus() // 确保可以接收按键事件
+        //playerView.requestFocus() // 确保可以接收按键事件
         // 如果已经初始化了播放器，则恢复播放
         if (player != null && currentVideoPath.isNotEmpty()) {
             // 恢复播放
@@ -1076,10 +1077,23 @@ class SmbVideoPlayerActivity : ComponentActivity() {
         isfinish = true;
     }
 
+    // 监听方向键事件
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            resetAutoHideTimer()
+        }
+        return super.dispatchKeyEvent(event)
+    }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_BACK -> {
+                if (isControllerVisible)
+                {
+                    playerView.controllerAutoShow = false // 确保自动隐藏机制生效
+                    playerView.hideController()
+                    return true
+                }
                 if (isSeekMode) {
                     return true
                 }
@@ -1087,6 +1101,8 @@ class SmbVideoPlayerActivity : ComponentActivity() {
                 return true
             }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                playerView.useController = true
+                playerView.showController()
                 if (isSeekMode) {
                     if (!(player?.playWhenReady?:false))
                     {
@@ -1095,11 +1111,13 @@ class SmbVideoPlayerActivity : ComponentActivity() {
                     else {
 
                     }
+                    resetAutoHideTimer()
                     return true
                 } else {
                     // 切换播放/暂停状态
                     player?.playWhenReady = !(player?.playWhenReady ?: false)
                     Log.d("KeyEvent", "切换播放状态: ${if (player?.playWhenReady == true) "播放" else "暂停"}")
+                    resetAutoHideTimer()
                     return true
                 }
             }
@@ -1116,16 +1134,18 @@ class SmbVideoPlayerActivity : ComponentActivity() {
                         it.seekTo(newPos.coerceAtMost(it.duration))
                     }
                 }
+                playerView.useController = true
                 playerView.showController() // 强制显示控制器
-                playerView.controllerAutoShow = true // 确保自动隐藏机制生效
+                //playerView.controllerAutoShow = true // 确保自动隐藏机制生效
                 // 立即显示进度条
                 if (!isSeekMode) {
                     Log.d("KeyEvent", "显示进度条")
 
                 } else {
                     // 如果已经显示，则重置自动隐藏定时器
-                    resetAutoHideTimer()
+
                 }
+                resetAutoHideTimer()
 
                 return true
             }

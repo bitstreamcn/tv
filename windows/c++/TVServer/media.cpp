@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include "session.h"
+#include <io.h>
+#include <fcntl.h>
 
 
 Media::Media(std::string inut_file, Session& s, bool ffmpeg)
@@ -1346,18 +1348,111 @@ void TerminateChildProcesses(DWORD parentPid) {
 }
 
 // 优雅终止尝试
-bool SendCtrlC(HANDLE hProcess) {
-    if (!FreeConsole()) return false;
+// 控制台状态保存结构体
+struct ConsoleContext {
+    int origStdOut = -1;
+    int origStdErr = -1;
+    bool attached = false;
+};
 
-    DWORD pid = GetProcessId(hProcess);
-    if (!AttachConsole(pid)) return false;
+// 开始附加到目标控制台
+ConsoleContext BeginAttach(DWORD dwProcessId) {
+    ConsoleContext ctx;
 
-    bool success = false;
-    if (SetConsoleCtrlHandler(nullptr, true)) {
-        success = GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
-        Sleep(100); // 给进程处理时间
-        FreeConsole();
+    // 保存原始标准流描述符
+    ctx.origStdOut = _dup(_fileno(stdout));
+    ctx.origStdErr = _dup(_fileno(stderr));
+
+    // 分离当前控制台
+    if (!FreeConsole()) {
+        std::cerr << "FreeConsole failed: " << GetLastError() << "\n";
+        return ctx;
     }
+
+    // 附加到目标控制台
+    if (AttachConsole(dwProcessId)) {
+        ctx.attached = true;
+
+        // 使用安全方式重新打开标准流
+        FILE* newStdOut = nullptr;
+        FILE* newStdErr = nullptr;
+
+        if (freopen_s(&newStdOut, "CONOUT$", "w", stdout) != 0) {
+            std::cerr << "Failed to redirect stdout\n";
+        }
+        if (freopen_s(&newStdErr, "CONOUT$", "w", stderr) != 0) {
+            std::cerr << "Failed to redirect stderr\n";
+        }
+
+        // 确保缓冲区立即刷新
+        setvbuf(stdout, nullptr, _IONBF, 0);
+        setvbuf(stderr, nullptr, _IONBF, 0);
+    }
+    else {
+        std::cerr << "AttachConsole failed: " << GetLastError() << "\n";
+        // 失败时尝试恢复原始控制台
+        AttachConsole(ATTACH_PARENT_PROCESS);
+    }
+
+    return ctx;
+}
+
+// 恢复原始控制台状态
+void EndAttach(ConsoleContext& ctx) {
+    if (!ctx.attached) return;
+
+    // 释放目标控制台
+    FreeConsole();
+
+    // 重新附加到原始控制台
+    if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
+        std::cerr << "Re-attach failed: " << GetLastError() << "\n";
+    }
+
+    // 恢复标准输出流
+    if (ctx.origStdOut != -1) {
+        if (_dup2(ctx.origStdOut, _fileno(stdout)) != 0) {
+            std::cerr << "Failed to restore stdout: " << GetLastError() << "\n";
+        }
+        _close(ctx.origStdOut);
+    }
+
+    // 恢复标准错误流
+    if (ctx.origStdErr != -1) {
+        if (_dup2(ctx.origStdErr, _fileno(stderr)) != 0) {
+            std::cerr << "Failed to restore stderr: " << GetLastError() << "\n";
+        }
+        _close(ctx.origStdErr);
+    }
+
+    // 显式重新打开控制台流
+    FILE* dummy = nullptr;
+    if (freopen_s(&dummy, "CONOUT$", "w", stdout) != 0) {
+        std::cerr << "Failed to reopen stdout\n";
+    }
+    if (freopen_s(&dummy, "CONOUT$", "w", stderr) != 0) {
+        std::cerr << "Failed to reopen stderr\n";
+    }
+
+    // 刷新所有缓冲区
+    fflush(stdout);
+    fflush(stderr);
+}
+
+// 使用示例
+bool SendCtrlC(DWORD pid) {
+    ConsoleContext ctx = BeginAttach(pid);
+    bool success = false;
+
+    if (ctx.attached) {
+        if (SetConsoleCtrlHandler(nullptr, true)) {
+            success = GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+            Sleep(300); // 等待信号处理
+            SetConsoleCtrlHandler(nullptr, false);
+        }
+    }
+
+    EndAttach(ctx);
     return success;
 }
 
@@ -1367,13 +1462,11 @@ void TerminateProcessTree(PROCESS_INFORMATION& pi) {
     const int maxAttempts = 3;
 
     // 第一阶段：优雅终止
-    /*
-    if (SendCtrlC(pi.hProcess)) {
+    if (SendCtrlC(pi.dwProcessId)) {
         if (WaitForSingleObject(pi.hProcess, waitTimeout) == WAIT_OBJECT_0) {
             goto cleanup;
         }
     }
-    */
     // 第二阶段：终止子进程后重试
     TerminateChildProcesses(pi.dwProcessId);
     TerminateProcess(pi.hProcess, 1);

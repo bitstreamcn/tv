@@ -1,11 +1,14 @@
 ﻿// TVServer.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
 //
-#include <iostream>
-
 #include <cstdint>
 #include <vector>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <windows.h>
+#include <tlhelp32.h>
+#include <iostream>
+#include <string>
+#include <cwchar>
 #include <thread>
 #include <queue>
 #include <map>
@@ -218,6 +221,54 @@ BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType) {
     return FALSE;
 }
 
+void KillProcessByName(const std::string& processName) {
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hSnapshot == INVALID_HANDLE_VALUE) {
+        std::cerr << "CreateToolhelp32Snapshot 失败。错误代码: " << GetLastError() << std::endl;
+        return;
+    }
+
+    PROCESSENTRY32 pe;
+    pe.dwSize = sizeof(PROCESSENTRY32);
+
+    if (!Process32First(hSnapshot, &pe)) {
+        std::cerr << "Process32First 失败。错误代码: " << GetLastError() << std::endl;
+        CloseHandle(hSnapshot);
+        return;
+    }
+
+    bool found = false;
+    do {
+        if (_stricmp(pe.szExeFile, processName.c_str()) == 0) {
+            found = true;
+            HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, pe.th32ProcessID);
+            if (hProcess != NULL) {
+                if (TerminateProcess(hProcess, 0)) {
+                    std::cout << "已终止进程: " << pe.szExeFile
+                        << " (PID: " << pe.th32ProcessID << ")" << std::endl;
+                }
+                else {
+                    DWORD error = GetLastError();
+                    std::cerr << "无法终止进程 " << pe.szExeFile
+                        << "。错误代码: " << error << std::endl;
+                }
+                CloseHandle(hProcess);
+            }
+            else {
+                DWORD error = GetLastError();
+                std::cerr << "无法打开进程 " << pe.szExeFile
+                    << "。错误代码: " << error << std::endl;
+            }
+        }
+    } while (Process32Next(hSnapshot, &pe));
+
+    if (!found) {
+        std::cout << "未找到进程: " << processName << std::endl;
+    }
+
+    CloseHandle(hSnapshot);
+}
+
 int main() {
     std::locale commaLocale(std::locale(), new std::numpunct<char>());
     std::cout.imbue(commaLocale);
@@ -322,6 +373,8 @@ int main() {
             delete it->second;
         }
     }
+
+    KillProcessByName("ffmpeg.exe");
 
     WSACleanup();
     return 0;

@@ -283,7 +283,7 @@ class FileListActivity : ComponentActivity() {
             "file" -> {
                 Log.d("click", item.path)
                 if (isVideoFile(item.path)) {
-                    if (item.path.endsWith(".ts", true)) {
+                    if (item.path.endsWith(".ts", true) && false) {
 
                         // 检查是否有播放记录
                         val record = unfinishedRecords.find { it.path == item.path }

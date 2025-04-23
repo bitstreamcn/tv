@@ -111,6 +111,7 @@ public:
     bool Stop();
     bool Seek(double seconds);
     double Duration();
+    double Fps() { return fps; }
 
 private:
 
@@ -143,6 +144,8 @@ private:
     Session& session;
 
     std::string path_file;
+
+    double fps = 0;
 
     std::mutex clock_mutex;
     volatile double video_clock = 0;

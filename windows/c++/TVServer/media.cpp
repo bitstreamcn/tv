@@ -28,6 +28,31 @@ Media::Media(std::string inut_file, Session& s, bool ffmpeg)
             avformat_close_input(&input_fmt_ctx);
             return;
         }
+
+        // 3. 找到视频流索引
+        int video_stream_idx = -1;
+        for (unsigned int i = 0; i < input_fmt_ctx->nb_streams; i++) {
+            if (input_fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+                video_stream_idx = i;
+                break;
+            }
+        }
+        if (video_stream_idx == -1) {
+            std::cerr << "No video stream found.\n";
+            return;
+        }
+        // 4. 获取 FPS（帧率）
+        AVStream* video_stream = input_fmt_ctx->streams[video_stream_idx];
+        // 方法 1：使用 `avg_frame_rate`（推荐）
+        fps = av_q2d(video_stream->avg_frame_rate);
+        // 方法 2：如果 `avg_frame_rate` 无效，尝试用 `r_frame_rate`
+        if (fps <= 0.0) {
+            fps = av_q2d(video_stream->r_frame_rate);
+        }
+        // 方法 3：如果无法获取，尝试计算 FPS = `time_base` 的倒数（适用于可变帧率）
+        if (fps <= 0.0 && video_stream->time_base.den > 0) {
+            fps = 1.0 / av_q2d(video_stream->time_base);
+        }
     }
     // 查找视频和音频流
     /*
@@ -1492,9 +1517,15 @@ bool Media::MainPipeCallback()
 {
     std::string pathgb2312 = UTF8ToGB2312(path_file);
 
+    std::string fps_format = "";
+    if (fps > 30)
+    {
+        fps_format = "-vf \"fps=30\"";
+    }
     // 构建 ffmpeg 命令
-    //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string((uint32_t)seek_target_ / 1000000) + " -i \"" + pathgb2312 + "\" -c:v libx264 -preset faster -tune fastdecode -maxrate 1.5M -b:v 1.5M -c:a aac -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-    std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string((uint32_t)seek_target_ / 1000000) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+    std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -c:v libx264 -preset faster -tune fastdecode -maxrate 3M -b:v 3M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+    //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+    //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a copy -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
 
     std::cout << ffmpegCommand << std::endl;
 

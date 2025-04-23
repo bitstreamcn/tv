@@ -448,14 +448,26 @@ void Session::control_fun()
                     std::string filenameWithoutExt = fsPath.stem().string();
                     std::string outputPath = directory + "\\" + filenameWithoutExt + ".ts";
 
+                    std::string fps_format = "";
+                    {
+                        Media media(pathgb2312, *this, true);
+                        if (media.Fps() > 30)
+                        {
+                            fps_format = "fps=30,";
+                        }
+                    }
                     // 构建 ffmpeg 命令
-                    std::string ffmpegCommand = "ffmpeg -y -re -i \"" + pathgb2312 + "\" -c:v libx264 -preset slow -tune film -crf 23 -bufsize 6M -maxrate 5M -b:v 2M -c:a aac -ac 2 -b:a 160k -f mpegts \"" + outputPath + "\"";
+                    //std::string ffmpegCommand = "ffmpeg -y -re -i \"" + pathgb2312 + "\" -c:v libx264 -preset slow -tune film -crf 23 -bufsize 6M -maxrate 5M -b:v 2M -c:a aac -ac 2 -b:a 160k -f mpegts \"" + outputPath + "\"";
+                    //std::string ffmpegCommand = "ffmpeg -y -re -i \"" + pathgb2312 + "\" -c:v libx264 -preset slow -tune film -maxrate 5M -b:v 2M -c:a aac -ac 2 -b:a 160k -f mpegts \"" + outputPath + "\"";
+                    //std::string ffmpegCommand = "ffmpeg -y -re -i \"" + pathgb2312 + "\" -vf \"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1\" -c:v libx264 -preset slow -tune film -c:a aac -ac 2 -f mpegts \"" + outputPath + "\"";
                     //std::string ffmpegCommand = "ffmpeg -y -i \"" + pathgb2312 + "\" -c copy -f mpegts \"" + outputPath + "\"";
+                    std::string ffmpegCommandParam = "-y -i \"" + pathgb2312 + "\" -vf \"" + fps_format + "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1\" -c:v libx264 -preset faster -tune fastdecode -maxrate 3M -b:v 3M -c:a aac -ac 2 -b:a 160k -f mpegts \"" + outputPath + "\"";
 
                     STARTUPINFO si = { sizeof(si) };
-                    PROCESS_INFORMATION pi;
+                    //PROCESS_INFORMATION pi;
                     // 创建新进程执行 FFmpeg 命令
-                    if (CreateProcess(NULL, const_cast<char*>(ffmpegCommand.c_str()), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+                    /*
+                    if (CreateProcess(NULL, const_cast<char*>(ffmpegCommand.c_str()), NULL, NULL, FALSE, CREATE_BREAKAWAY_FROM_JOB | CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi)) {
                         std::cout << "FFmpeg process started." << std::endl;
 
                         // 等待进程结束
@@ -468,6 +480,15 @@ void Session::control_fun()
                     else {
                         std::cerr << "Failed to start FFmpeg process. Error code: " << GetLastError() << std::endl;
                     }
+                    */
+                    ShellExecute(
+                        NULL,
+                        "open",
+                        "ffmpeg",                 // 如果 ffmpeg.exe 在 PATH 中可用
+                        ffmpegCommandParam.c_str(),  // 参数列表
+                        NULL,
+                        SW_SHOWNORMAL
+                    );
 
                     response["status"] = "success";
                 }

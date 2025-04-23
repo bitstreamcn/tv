@@ -301,7 +301,7 @@ int main() {
     sockaddr_in ctrl_addr{ AF_INET, htons(25313), INADDR_ANY };
     // 绑定控制端口套接字
     if (bind(ctrl_listen, (sockaddr*)&ctrl_addr, sizeof(ctrl_addr)) == SOCKET_ERROR) {
-        std::cerr << "Control socket bind failed: " << WSAGetLastError() << std::endl;
+        std::cerr << "Control socket bind failed[25313]: " << WSAGetLastError() << std::endl;
         closesocket(ctrl_listen);
         WSACleanup();
         return 1;
@@ -327,7 +327,7 @@ int main() {
     sockaddr_in data_addr{ AF_INET, htons(25314), INADDR_ANY };
     // 绑定数据端口套接字
     if (bind(data_listen, (sockaddr*)&data_addr, sizeof(data_addr)) == SOCKET_ERROR) {
-        std::cerr << "Data socket bind failed: " << WSAGetLastError() << std::endl;
+        std::cerr << "Data socket bind failed[25314]: " << WSAGetLastError() << std::endl;
         closesocket(ctrl_listen);
         closesocket(data_listen);
         WSACleanup();

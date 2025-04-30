@@ -1,5 +1,7 @@
 # 电视本地播放器
  在电视上浏览电脑硬盘并播放视频文件
+![bc799245-b3ba-4823-a2d3-ca322432b764](https://github.com/user-attachments/assets/0cd1def6-eb6c-4692-ac15-9836c149a165)
+
 
 
 目前只支持android5.0以上电视。

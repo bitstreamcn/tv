@@ -331,6 +331,14 @@ void Session::clear_queue()
     }
 }
 
+std::string GetCurrentExeDirectory() {
+    char path[MAX_PATH];
+    GetModuleFileNameA(NULL, path, MAX_PATH); // 获取当前可执行文件完整路径 
+    std::string exePath(path);
+    size_t pos = exePath.find_last_of("\\/");  // 找到最后一个路径分隔符 
+    return exePath.substr(0, pos + 1); // 截取目录部分 
+}
+
 void Session::control_fun()
 {
     while (true) {
@@ -536,6 +544,7 @@ void Session::control_fun()
                 }
             }
             else if (cmd["action"] == "smblist") {
+            /*
                 nlohmann::json list = nlohmann::json::array();
                 nlohmann::json server;
                 server["name"] = "bitstream";
@@ -543,10 +552,23 @@ void Session::control_fun()
                 server["user"] = "tv";
                 server["password"] = "tv";
                 list.push_back(server);
+                */
+                // 1. 获取当前程序所在目录 
+                std::string dir = GetCurrentExeDirectory();
+                std::string jsonPath = dir + "smb.json";
 
+                // 2. 读取文件内容 
+                std::ifstream file(jsonPath);
+                if (!file.is_open()) {
+                    //throw std::runtime_error("Failed to open file: " + jsonPath);
+                    std::cerr << "Failed to open file: " + jsonPath << std::endl;
+                }
+
+                // 3. 解析为 JSON 对象 
+                nlohmann::json data = nlohmann::json::parse(file);
                 response["status"] = "success";
                 response["message"] = "";
-                response["items"] = list;
+                response["items"] = data;
             }
             else if (cmd["action"] == "download") {
                 std::string path = cmd["path"]; //返回的是UTF-8格式

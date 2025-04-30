@@ -149,6 +149,17 @@ int ping_thread()
         return 1;
     }
 
+    // 启用端口复用 
+    {
+        int reuse = 1;
+        if (setsockopt(pingServerSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse)) == SOCKET_ERROR) {
+            std::cerr << "Failed to setsockopt socket." << std::endl;
+            closesocket(pingServerSocket);
+            pingServerSocket = -1;
+            return -1;
+        }
+    }
+
     // 配置服务器地址
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
@@ -298,6 +309,16 @@ int main() {
         return 1;
     }
 
+    // 启用端口复用 
+    {
+        int reuse = 1;
+        if (setsockopt(ctrl_listen, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse)) == SOCKET_ERROR) {
+            closesocket(ctrl_listen);
+            WSACleanup();
+            return -1;
+        }
+    }
+
     sockaddr_in ctrl_addr{ AF_INET, htons(25313), INADDR_ANY };
     // 绑定控制端口套接字
     if (bind(ctrl_listen, (sockaddr*)&ctrl_addr, sizeof(ctrl_addr)) == SOCKET_ERROR) {
@@ -322,6 +343,17 @@ int main() {
         closesocket(ctrl_listen);
         WSACleanup();
         return 1;
+    }
+
+    // 启用端口复用 
+    {
+        int reuse = 1;
+        if (setsockopt(data_listen, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse)) == SOCKET_ERROR) {
+            closesocket(ctrl_listen);
+            closesocket(data_listen);
+            WSACleanup();
+            return -1;
+        }
     }
 
     sockaddr_in data_addr{ AF_INET, htons(25314), INADDR_ANY };
@@ -374,9 +406,12 @@ int main() {
         }
     }
 
+    
+
     KillProcessByName("ffmpeg.exe");
 
     WSACleanup();
+
     return 0;
 }
 

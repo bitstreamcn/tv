@@ -1526,7 +1526,7 @@ bool Media::MainPipeCallback()
     }
     // ππΩ® ffmpeg √¸¡Ó
     //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame  -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -c:v libx264 -preset faster -tune fastdecode -maxrate 3M -b:v 3M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-    std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+    std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
     //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
     //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a copy -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
 

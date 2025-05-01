@@ -131,6 +131,10 @@
       <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
       <UACUIAccess>true</UACUIAccess>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy /Y $(TargetPath) $(ProjectDir)..\TVServerUI\bin\Debug\$(TargetFileName)
+xcopy /Y $(TargetDir)$(TargetName).pdb $(ProjectDir)..\TVServerUI\bin\Debug\$(TargetName).pdb</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>

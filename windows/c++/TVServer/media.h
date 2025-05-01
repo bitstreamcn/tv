@@ -29,7 +29,7 @@ extern "C" {
 
 
 #define TS_PACKET_SIZE 188
-#define MAX_QUEUE_SIZE 100
+#define MAX_QUEUE_SIZE 1000
 #define DEC_BUFF_SIZE (TS_PACKET_SIZE * 32)
 
 // 全局共享队列

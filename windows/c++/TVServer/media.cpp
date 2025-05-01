@@ -1487,11 +1487,13 @@ void TerminateProcessTree(PROCESS_INFORMATION& pi) {
     const int maxAttempts = 3;
 
     // 第一阶段：优雅终止
+    /*
     if (SendCtrlC(pi.dwProcessId)) {
         if (WaitForSingleObject(pi.hProcess, waitTimeout) == WAIT_OBJECT_0) {
             goto cleanup;
         }
     }
+    */
     // 第二阶段：终止子进程后重试
     TerminateChildProcesses(pi.dwProcessId);
     TerminateProcess(pi.hProcess, 1);
@@ -1520,10 +1522,11 @@ bool Media::MainPipeCallback()
     std::string fps_format = "";
     if (fps > 30)
     {
-        fps_format = "-vf \"fps=30\"";
+        //fps_format = "-vf \"fps=30\"";
     }
     // 构建 ffmpeg 命令
-    std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -c:v libx264 -preset faster -tune fastdecode -maxrate 3M -b:v 3M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+    //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame  -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -c:v libx264 -preset faster -tune fastdecode -maxrate 3M -b:v 3M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+    std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
     //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
     //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a copy -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
 

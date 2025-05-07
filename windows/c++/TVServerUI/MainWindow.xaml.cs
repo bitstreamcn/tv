@@ -409,7 +409,17 @@ namespace TVServerUI
             {
                 try
                 {
-                    tvServerProcess.Kill();
+                    //tvServerProcess.Kill();
+                    //ShellExecute(NULL, "open", "taskkill.exe", ("/PID " + std::to_string(pi.dwProcessId) + " /T /F").c_str(), NULL, SW_HIDE);
+                    // 运行批处理脚本（隐藏控制台）
+                    Win32API.ShellExecute(
+                        IntPtr.Zero,
+                        "open",
+                        "taskkill.exe",
+                        "/PID " + tvServerProcess.Id + " /T /F",  // /C 执行后关闭控制台 
+                        null,
+                        Win32API.SW_HIDE
+                    );
                     tvServerProcess.WaitForExit();
                     AppendLog("TVServer已停止");
                 }

@@ -233,6 +233,9 @@ BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType) {
 }
 
 void KillProcessByName(const std::string& processName) {
+    //system(("start taskkill /IM " + processName + " /T /F").c_str());
+    ShellExecute(NULL, "open", "taskkill.exe", ("/IM " + processName + " /T /F").c_str(), NULL, SW_HIDE);
+    /*
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hSnapshot == INVALID_HANDLE_VALUE) {
         std::cerr << "CreateToolhelp32Snapshot 失败。错误代码: " << GetLastError() << std::endl;
@@ -270,6 +273,7 @@ void KillProcessByName(const std::string& processName) {
                 std::cerr << "无法打开进程 " << pe.szExeFile
                     << "。错误代码: " << error << std::endl;
             }
+            
         }
     } while (Process32Next(hSnapshot, &pe));
 
@@ -278,6 +282,7 @@ void KillProcessByName(const std::string& processName) {
     }
 
     CloseHandle(hSnapshot);
+    */
 }
 
 int main() {

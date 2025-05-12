@@ -1,7 +1,4 @@
-﻿  TVServer.cpp
-  media.cpp
-  正在生成代码...
-  LINK : 没有找到 J:\tv\windows\c++\TVServer\x64\Debug\TVServer.exe 或上一个增量链接没有生成它；正在执行完全链接
+﻿  media.cpp
   TVServer.vcxproj -> J:\tv\windows\c++\TVServer\x64\Debug\TVServer.exe
   J:\tv\windows\c++\TVServer\x64\Debug\TVServer.exe
   复制了 1 个文件

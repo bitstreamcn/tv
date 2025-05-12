@@ -51,8 +51,11 @@
                             
                             <!-- 日志内容 -->
                             <ScrollViewer Margin="0" x:Name="scrollViewer" Panel.ZIndex="1">
-                                <TextBlock x:Name="logTextBlock" 
+                                <TextBox  x:Name="logTextBlock" 
                                           TextWrapping="Wrap" 
+                                                  IsReadOnly="True"
+        BorderThickness="0"
+
                                           Background="#80363333"
                                           Foreground="#E0E0E0" />
                             </ScrollViewer>

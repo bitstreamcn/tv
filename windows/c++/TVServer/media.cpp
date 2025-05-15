@@ -53,6 +53,10 @@ Media::Media(std::string inut_file, Session& s, bool ffmpeg)
         if (fps <= 0.0 && video_stream->time_base.den > 0) {
             fps = 1.0 / av_q2d(video_stream->time_base);
         }
+
+        AVCodecParameters* pCodecParams = video_stream->codecpar;
+        // 获取像素格式 (AVPixelFormat)
+        pixel_format = (enum AVPixelFormat)pCodecParams->format;
     }
     // 查找视频和音频流
     /*
@@ -1525,15 +1529,18 @@ bool Media::MainPipeCallback()
         //fps_format = "-vf \"fps=30\"";
     }
     // 构建 ffmpeg 命令
+    std::string ffmpegCommand = "";
     //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame  -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -c:v libx264 -preset faster -tune fastdecode -maxrate 3M -b:v 3M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
     //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
     //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + "  -vf \"hwdownload,format=nv12\" -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-    //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -map 0:v:0 -map 0:a:0 " + fps_format + "  -vf \"hwdownload,format=nv12\" -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+    ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -map 0:v:0 -map 0:a:0 -vf \"hwdownload,format=nv12\" -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
     //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
     //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a copy -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-    //解决yuv420p10le问题
-    std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -map 0:v:0 -map 0:a:0 " + fps_format + " -c:v copy -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-
+    //解决yuv420p10le问题(H265 hevc_nvenc)
+    if (pixel_format == AV_PIX_FMT_YUV420P10LE) 
+    {
+        ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -map 0:v:0 -map 0:a:0 " + fps_format + " -c:v hevc_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+    }
     std::cout << ffmpegCommand << std::endl;
 
     SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), NULL, TRUE };

@@ -146,6 +146,7 @@ private:
     std::string path_file;
 
     double fps = 0;
+    enum AVPixelFormat pixel_format;
 
     std::mutex clock_mutex;
     volatile double video_clock = 0;

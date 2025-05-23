@@ -1171,9 +1171,9 @@ class MainActivity : ComponentActivity() {
                 migrateOldRecords(oldRecordsJson)
                 // 迁移完成后删除旧数据
                 sharedPreferences.edit().remove("records").apply()
-                Log.d("Records", "旧版本播放记录迁移完成")
+                //Log.d("Records", "旧版本播放记录迁移完成")
             } catch (e: Exception) {
-                Log.e("MainActivity", "迁移旧播放记录出错", e)
+                //Log.e("MainActivity", "迁移旧播放记录出错", e)
             }
         } else {
             // 从新格式加载记录
@@ -1238,7 +1238,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            Log.d("Records", "成功加载播放记录（已完成: ${finishedRecords.size}, 未完成: ${unfinishedRecords.size}）")
+            //Log.d("Records", "成功加载播放记录（已完成: ${finishedRecords.size}, 未完成: ${unfinishedRecords.size}）")
         }
 
         // 确保记录分类正确
@@ -1289,14 +1289,14 @@ class MainActivity : ComponentActivity() {
             // 保存到新格式
             savePlayRecords()
 
-            Log.d("Records", "迁移了 ${tmpRecords.size} 条播放记录（已完成: ${finishedRecords.size}, 未完成: ${unfinishedRecords.size}）")
+            //Log.d("Records", "迁移了 ${tmpRecords.size} 条播放记录（已完成: ${finishedRecords.size}, 未完成: ${unfinishedRecords.size}）")
         } catch (e: Exception) {
             Log.e("MainActivity", "迁移旧播放记录出错", e)
         }
     }
 
     private fun updateRecordLists() {
-        Log.d("Records", "开始更新记录列表，未完成记录: ${unfinishedRecords.size}，已完成记录: ${finishedRecords.size}")
+        //Log.d("Records", "开始更新记录列表，未完成记录: ${unfinishedRecords.size}，已完成记录: ${finishedRecords.size}")
 
         // 先检查并清理可能的重复记录
         cleanupDuplicateRecords()
@@ -1312,15 +1312,15 @@ class MainActivity : ComponentActivity() {
             .sortedByDescending { it.lastPlayTime }
             .take(4)
 
-        Log.d("Records", "过滤后的显示记录数量 - 未完成: ${displayUnfinishedRecords.size}，已完成: ${displayFinishedRecords.size}")
+        //Log.d("Records", "过滤后的显示记录数量 - 未完成: ${displayUnfinishedRecords.size}，已完成: ${displayFinishedRecords.size}")
 
         // 输出记录详情到日志
         displayUnfinishedRecords.forEachIndexed { index, record ->
-            Log.d("Records", "显示未完成[$index]: ${record.path}, 进度: ${record.position}/${record.duration}, 完成状态: ${record.isCompleted()}")
+            //Log.d("Records", "显示未完成[$index]: ${record.path}, 进度: ${record.position}/${record.duration}, 完成状态: ${record.isCompleted()}")
         }
 
         displayFinishedRecords.forEachIndexed { index, record ->
-            Log.d("Records", "显示已完成[$index]: ${record.path}, 进度: ${record.position}/${record.duration}, 完成状态: ${record.isCompleted()}")
+            //Log.d("Records", "显示已完成[$index]: ${record.path}, 进度: ${record.position}/${record.duration}, 完成状态: ${record.isCompleted()}")
         }
 
         try {
@@ -1332,13 +1332,13 @@ class MainActivity : ComponentActivity() {
 
             // 重新创建适配器以确保点击事件正确处理
             unfinishedRecyclerAdapter = VideoRecordAdapter(displayUnfinishedRecords) { record ->
-                Log.d("Records", "点击未完成记录: ${record.path}, 位置: ${record.position}/${record.duration}")
+                //Log.d("Records", "点击未完成记录: ${record.path}, 位置: ${record.position}/${record.duration}")
                 playVideo(record.path, record.position, record.ffmpeg)
             }
             unfinishedRecyclerView.adapter = unfinishedRecyclerAdapter
 
             finishedRecyclerAdapter = VideoRecordAdapter(displayFinishedRecords) { record ->
-                Log.d("Records", "点击已完成记录: ${record.path}, 位置: ${record.position}/${record.duration}")
+                //Log.d("Records", "点击已完成记录: ${record.path}, 位置: ${record.position}/${record.duration}")
                 playVideo(record.path, 0, record.ffmpeg)  // 已完成记录从头开始播放
             }
             finishedRecyclerView.adapter = finishedRecyclerAdapter
@@ -1380,22 +1380,22 @@ class MainActivity : ComponentActivity() {
             // 4. 已完成的"更多"按钮的下一个焦点是浏览按钮
 
             // 记录可见性变化
-            Log.d("UI", "未完成记录可见性: $originalUnfinishedVisibility -> ${unfinishedRecyclerView.visibility}")
-            Log.d("UI", "已完成记录可见性: $originalFinishedVisibility -> ${finishedRecyclerView.visibility}")
-            Log.d("UI", "未完成'更多'按钮可见性: $originalUnfinishedMoreBtnVisibility -> ${unfinishedMoreBtn?.visibility ?: View.GONE}")
-            Log.d("UI", "已完成'更多'按钮可见性: $originalFinishedMoreBtnVisibility -> ${finishedMoreBtn?.visibility ?: View.GONE}")
+            //Log.d("UI", "未完成记录可见性: $originalUnfinishedVisibility -> ${unfinishedRecyclerView.visibility}")
+            //Log.d("UI", "已完成记录可见性: $originalFinishedVisibility -> ${finishedRecyclerView.visibility}")
+            //Log.d("UI", "未完成'更多'按钮可见性: $originalUnfinishedMoreBtnVisibility -> ${unfinishedMoreBtn?.visibility ?: View.GONE}")
+            //Log.d("UI", "已完成'更多'按钮可见性: $originalFinishedMoreBtnVisibility -> ${finishedMoreBtn?.visibility ?: View.GONE}")
 
             // 检查并日志记录按钮位置
             unfinishedMoreBtn?.post {
                 val location = IntArray(2)
                 unfinishedMoreBtn.getLocationOnScreen(location)
-                Log.d("UI", "未完成'更多'按钮位置: x=${location[0]}, y=${location[1]}, 宽=${unfinishedMoreBtn.width}, 高=${unfinishedMoreBtn.height}")
+                //Log.d("UI", "未完成'更多'按钮位置: x=${location[0]}, y=${location[1]}, 宽=${unfinishedMoreBtn.width}, 高=${unfinishedMoreBtn.height}")
             }
 
             finishedMoreBtn?.post {
                 val location = IntArray(2)
                 finishedMoreBtn.getLocationOnScreen(location)
-                Log.d("UI", "已完成'更多'按钮位置: x=${location[0]}, y=${location[1]}, 宽=${finishedMoreBtn.width}, 高=${finishedMoreBtn.height}")
+                //Log.d("UI", "已完成'更多'按钮位置: x=${location[0]}, y=${location[1]}, 宽=${finishedMoreBtn.width}, 高=${finishedMoreBtn.height}")
             }
 
         } catch (e: Exception) {
@@ -1428,16 +1428,16 @@ class MainActivity : ComponentActivity() {
                     if (unfinishedRecord.lastPlayTime > finishedRecord.lastPlayTime) {
                         // 未完成记录更新，保留未完成记录
                         finishedRecords.remove(finishedRecord)
-                        Log.d("Records", "保留未完成记录: $path")
+                        //Log.d("Records", "保留未完成记录: $path")
                     } else {
                         // 已完成记录更新，保留已完成记录
                         unfinishedRecords.remove(unfinishedRecord)
-                        Log.d("Records", "保留已完成记录: $path")
+                        //Log.d("Records", "保留已完成记录: $path")
                     }
                 }
             }
 
-            Log.d("Records", "清理完成，现在未完成记录: ${unfinishedRecords.size}, 已完成记录: ${finishedRecords.size}")
+            //Log.d("Records", "清理完成，现在未完成记录: ${unfinishedRecords.size}, 已完成记录: ${finishedRecords.size}")
         }
     }
 
@@ -1706,11 +1706,11 @@ class MainActivity : ComponentActivity() {
             .putString("finished_records", finishedJsonArray.toString())
             .apply()
 
-        Log.d("Records", "保存播放记录 - 未完成: ${unfinishedRecords.size}, 已完成: ${finishedRecords.size}")
+        //Log.d("Records", "保存播放记录 - 未完成: ${unfinishedRecords.size}, 已完成: ${finishedRecords.size}")
     }
 
     fun updatePlayRecord(path: String, position: Long, videoDuration: Long, ffmpeg: Boolean = false) {
-        Log.d("Records", "更新播放记录: path=$path, position=$position, duration=$videoDuration")
+        //Log.d("Records", "更新播放记录: path=$path, position=$position, duration=$videoDuration")
 
         // 先检查并从两个列表中移除该路径的记录
         val existingRecordInUnfinished = unfinishedRecords.find { it.path == path }
@@ -1735,15 +1735,15 @@ class MainActivity : ComponentActivity() {
 
             // 根据完成状态添加到相应列表
             if (existingRecord.isCompleted()) {
-                Log.d("Records", "更新记录已完成，添加到finishedRecords: $path")
+                //Log.d("Records", "更新记录已完成，添加到finishedRecords: $path")
                 if (!wasInFinishedList) {
-                    Log.d("Records", "记录从未完成移动到已完成: $path")
+                    //Log.d("Records", "记录从未完成移动到已完成: $path")
                 }
                 finishedRecords.add(existingRecord)
             } else {
-                Log.d("Records", "更新记录未完成，添加到unfinishedRecords: $path")
+                //Log.d("Records", "更新记录未完成，添加到unfinishedRecords: $path")
                 if (wasInFinishedList) {
-                    Log.d("Records", "记录从已完成移动到未完成: $path")
+                    //Log.d("Records", "记录从已完成移动到未完成: $path")
                 }
                 unfinishedRecords.add(existingRecord)
             }
@@ -1760,10 +1760,10 @@ class MainActivity : ComponentActivity() {
 
             // 根据完成状态添加到相应列表
             if (newRecord.isCompleted()) {
-                Log.d("Records", "新记录已完成，添加到finishedRecords: $path")
+                //Log.d("Records", "新记录已完成，添加到finishedRecords: $path")
                 finishedRecords.add(newRecord)
             } else {
-                Log.d("Records", "新记录未完成，添加到unfinishedRecords: $path")
+                //Log.d("Records", "新记录未完成，添加到unfinishedRecords: $path")
                 unfinishedRecords.add(newRecord)
             }
         }
@@ -1774,10 +1774,10 @@ class MainActivity : ComponentActivity() {
         val duplicatePaths = unfinishedPaths.intersect(finishedPaths.toSet())
 
         if (duplicatePaths.isNotEmpty()) {
-            Log.w("Records", "警告：检测到同一文件同时存在于未完成和已完成列表中: $duplicatePaths")
+            //Log.w("Records", "警告：检测到同一文件同时存在于未完成和已完成列表中: $duplicatePaths")
             // 处理重复记录 - 从未完成列表中移除已完成的记录
             unfinishedRecords.removeAll { it.path in duplicatePaths }
-            Log.d("Records", "已移除重复记录，现在未完成记录数: ${unfinishedRecords.size}, 已完成记录数: ${finishedRecords.size}")
+            //Log.d("Records", "已移除重复记录，现在未完成记录数: ${unfinishedRecords.size}, 已完成记录数: ${finishedRecords.size}")
         }
 
         // 更新列表显示

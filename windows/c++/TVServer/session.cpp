@@ -355,6 +355,13 @@ void Session::control_fun()
             nlohmann::json response;
             response["status"] = "fail";
 
+            int32_t reqid = 0;
+            if (cmd.contains("reqid"))
+            {
+                reqid = cmd["reqid"];
+                response["reqid"] = reqid;
+            }
+
             if (!cmd.contains("action"))
             {
                 // ·¢ËÍÏìÓ¦

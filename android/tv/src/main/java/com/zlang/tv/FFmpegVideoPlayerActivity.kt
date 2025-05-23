@@ -1,6 +1,5 @@
 package com.zlang.tv
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -17,11 +16,12 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.AudioSink.UnexpectedDiscontinuityException
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
@@ -33,6 +33,7 @@ import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
 
 class FFmpegVideoPlayerActivity : ComponentActivity() {
     companion object {
@@ -297,6 +298,25 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
             bufferMonitor = BufferMonitor(this, player).apply {
                 start()
             }
+
+
+            // 设置事件监听器
+            player!!.addListener(object : Player.Listener {
+                override fun onPlayerError(error: PlaybackException) {
+                    Log.e(TAG, "onPlayerError", error)
+                    if (error.cause is AudioSink.UnexpectedDiscontinuityException) {
+                        // 处理音频时间戳不连续异常
+                        player?.stop()
+                        val position = (videoSeekBar.progress.toLong() * videoDuration) / 100
+                        startVideoFromPosition(position)
+                    } else {
+                        // 处理其他异常
+                        player?.stop()
+                        val position = (videoSeekBar.progress.toLong() * videoDuration) / 100
+                        startVideoFromPosition(position)
+                    }
+                }
+            })
 
         } catch (e: Exception) {
             Log.e(TAG, "Error setting up player", e)

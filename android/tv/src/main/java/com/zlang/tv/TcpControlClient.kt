@@ -9,6 +9,7 @@ import android.view.MotionEvent
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import kotlinx.coroutines.delay
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -32,14 +33,37 @@ object TcpControlClient {
     private external fun nativeConnect(handle: Long, ip: String, port: Int): Boolean
     private external fun nativeDisconnect(handle: Long)
     private external fun nativeSendRequest(handle: Long, data: ByteArray): ByteArray?
-    private external fun nativeSendRequestDownload(handle: Long, data: ByteArray, filename: String): ByteArray?
+    private external fun nativeSendRequestDownload(handle: Long, reqid: Long, data: ByteArray, filename: String): ByteArray?
     private external fun nativeDestroyClient(handle: Long)
     private external fun nativeisRunning(handle: Long): Boolean
     external fun nativeSendBroadcastAndReceive(list: ArrayList<String>, timeoutSeconds: Int)
 
+    fun response(data: ByteArray): Boolean
+    {
+        try{
+            val dataString = String(data, StandardCharsets.UTF_8)
+            val responseJson : JSONObject = JSONObject(dataString)
+            val id = responseJson.optLong("reqid", 0)
+            if (id == reqid) {
+                responseData = dataString
+                isresponse = true
+            }
+            else if (id < 0){
+                //处理服务器命令
+                processServerRequest(responseJson)
+            }
+        }catch (e: Exception){
+        }
+        return true
+    }
+
     private var nativeHandle: Long = 0
     private const val CONTROL_PORT = 25313
     private var serverIp: String? = null
+
+    private var reqid : Long = 1
+    private var isresponse : Boolean = false
+    private var responseData : String? = null
 
     private val task = object : TimerTask() {
         override fun run() {
@@ -93,17 +117,30 @@ object TcpControlClient {
             if (nativeHandle != 0L)
             {
                 val noResponse = "{}".toByteArray()
-                val requestData = json.toByteArray(StandardCharsets.UTF_8)
-                val responseData = if (null == filename){
+                val jsonReq : JSONObject = JSONObject(json)
+                reqid++
+                jsonReq.put("reqid", reqid)
+                responseData = null
+                isresponse = false
+                val requestData = jsonReq.toString().toByteArray(StandardCharsets.UTF_8)
+                var waitms = 0
+                if (null == filename){
                     nativeSendRequest(nativeHandle, requestData) ?: noResponse
+                    waitms = 5000
                 }else{
-                    nativeSendRequestDownload(nativeHandle, requestData, filename) ?: noResponse
+                    nativeSendRequestDownload(nativeHandle, reqid, requestData, filename) ?: noResponse
+                    waitms = 1000 * 60 * 5
                 }
-                if (responseData == null)
-                {
-                    return JSONObject()
+                //等待返回
+                for (i in 0..waitms / 100){
+                    Thread.sleep(100)
+                    if (isresponse)
+                    {
+                        break
+                    }
                 }
-                val responseJson = String(responseData, StandardCharsets.UTF_8)
+
+                val responseJson : String = responseData?:"{}"
                 return JSONObject(responseJson).apply {
                     if (optString("status", "fail") != "success") {
                         //throw IllegalStateException(getString("message"))
@@ -114,6 +151,11 @@ object TcpControlClient {
                 return JSONObject()
             }
         }
+    }
+
+    private fun processServerRequest(json : JSONObject)
+    {
+
     }
 
     fun disconnect() {

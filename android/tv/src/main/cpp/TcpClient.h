@@ -22,6 +22,8 @@ public:
     bool sendRequest(const std::vector<uint8_t>& data, bool download = false, const std::string filename = "");
     bool receiveResponse(std::vector<uint8_t>& outData, int timeoutMs = 5000);
     inline bool isRunning(){return running;}
+
+    long reqid = 0;
     
 private:
     void receiveThreadFunc();

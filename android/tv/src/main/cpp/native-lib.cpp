@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <unordered_set>
+#include <chrono>
 
 #define LOG_TAG "NativeTCP"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
@@ -18,6 +19,64 @@
 #define PORT 25325
 #define BROADCAST_IP "255.255.255.255"
 #define BUFFER_SIZE 1024
+
+
+using namespace std::chrono_literals;
+
+// 全局缓存提高性能（需在JNI_OnLoad初始化）
+static jclass singletonClass = nullptr;
+static jobject singletonInstance = nullptr;
+static jmethodID handleEventMethodID = nullptr;
+
+TcpClient* gclient = nullptr;
+
+extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
+    // 获取回调类引用
+    JNIEnv* env;
+    vm->GetEnv((void**)&env, JNI_VERSION_1_6);
+
+
+    // 获取Kotlin单例类
+    jclass clazz = env->FindClass("com/zlang/tv/TcpControlClient");
+    singletonClass = (jclass)env->NewGlobalRef(clazz);
+
+    // 获取INSTANCE静态字段
+    jfieldID instanceField = env->GetStaticFieldID(
+            clazz,
+            "INSTANCE",
+            "Lcom/zlang/tv/TcpControlClient;"
+    );
+
+    // 获取单例对象全局引用
+    jobject instance = env->GetStaticObjectField(clazz, instanceField);
+    singletonInstance = env->NewGlobalRef(instance);
+
+    // 预加载方法ID
+    handleEventMethodID = env->GetMethodID(
+            clazz,
+            "response",
+            "([B)Z"
+    );
+
+    std::thread([&env](){
+        while(true) {
+            std::vector<uint8_t> response;
+            if (gclient != nullptr && gclient->receiveResponse(response)) {
+                jbyteArray resData = env->NewByteArray(response.size());
+                env->SetByteArrayRegion(resData, 0, response.size(),
+                                        reinterpret_cast<jbyte*>(response.data()));
+                jboolean result = env->CallBooleanMethod(
+                        singletonInstance,
+                        handleEventMethodID,
+                        resData
+                );
+            }
+            std::this_thread::sleep_for(10ms);
+        }
+    }).detach();
+
+    return JNI_VERSION_1_6;
+}
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_zlang_tv_TcpControlClient_nativeSendBroadcastAndReceive(JNIEnv *env, jobject thiz, jobject list, jint timeoutSeconds) {
@@ -117,7 +176,8 @@ Java_com_zlang_tv_TcpControlClient_nativeSendBroadcastAndReceive(JNIEnv *env, jo
 
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_zlang_tv_TcpControlClient_nativeCreateClient(JNIEnv* /*env*/, jclass /*clazz*/) {
-    return reinterpret_cast<jlong>(new TcpClient());
+    gclient = new TcpClient() ;
+    return reinterpret_cast<jlong>(gclient);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -148,7 +208,7 @@ Java_com_zlang_tv_TcpControlClient_nativeSendRequest(
     
     jsize length = env->GetArrayLength(data);
     jbyte* bytes = env->GetByteArrayElements(data, nullptr);
-    
+
     std::vector<uint8_t> request(bytes, bytes + length);
     bool sendSuccess = client->sendRequest(request);
     env->ReleaseByteArrayElements(data, bytes, JNI_ABORT);
@@ -156,23 +216,17 @@ Java_com_zlang_tv_TcpControlClient_nativeSendRequest(
     if (!sendSuccess) {
         return nullptr;
     }
-    
-    std::vector<uint8_t> response;
-    if (client->receiveResponse(response)) {
-        while(client->receiveResponse(response, 0)); //取出所有返回数据，避免出现返回上一次请求结果
-        jbyteArray result = env->NewByteArray(response.size());
-        env->SetByteArrayRegion(result, 0, response.size(), 
-                               reinterpret_cast<jbyte*>(response.data()));
-        return result;
-    }
+
     return nullptr;
 }
 
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_zlang_tv_TcpControlClient_nativeSendRequestDownload(
-        JNIEnv* env, jclass /*clazz*/, jlong handle, jbyteArray data, jstring filename) {
+        JNIEnv* env, jclass /*clazz*/, jlong handle, jlong reqid, jbyteArray data, jstring filename) {
 
     TcpClient* client = reinterpret_cast<TcpClient*>(handle);
+
+    client->reqid = reqid;
 
     const char* c_filename = env->GetStringUTFChars(filename, nullptr);
 
@@ -187,7 +241,7 @@ Java_com_zlang_tv_TcpControlClient_nativeSendRequestDownload(
     if (!sendSuccess) {
         return nullptr;
     }
-
+/*
     std::vector<uint8_t> response;
     if (client->receiveResponse(response, 1000 * 60 * 5)) {
         while(client->receiveResponse(response, 0)); //取出所有返回数据，避免出现返回上一次请求结果
@@ -196,6 +250,7 @@ Java_com_zlang_tv_TcpControlClient_nativeSendRequestDownload(
                                 reinterpret_cast<jbyte*>(response.data()));
         return result;
     }
+ */
     return nullptr;
 }
 

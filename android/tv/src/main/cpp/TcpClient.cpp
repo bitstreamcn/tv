@@ -217,10 +217,10 @@ bool TcpClient::processReceivedData() {
             //发送返回包
             std::string str;
             if (file.fail()) {
-                str = "{\"status\":\"fail\"}";
+                str = "{\"reqid\":" + std::to_string(reqid) + ",\"status\":\"fail\"}";
             }
             else{
-                str = "{\"status\":\"success\"}";
+                str = "{\"reqid\":" + std::to_string(reqid) + ",\"status\":\"success\"}";
             }
             file.close();
             std::vector<uint8_t> vec(str.begin(), str.end());

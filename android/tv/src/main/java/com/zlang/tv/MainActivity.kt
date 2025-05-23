@@ -269,7 +269,7 @@ class MainActivity : ComponentActivity() {
         // 设置播放器相关
         playerView.keepScreenOn = true
         fileListView.layoutManager = LinearLayoutManager(this)
-        fileListView.setHasFixedSize(true)
+        //fileListView.setHasFixedSize(true)
 
         autoHideRunnable = Runnable { hideProgressBar() }
         screenshotRunnable = Runnable { takeScreenshot() }

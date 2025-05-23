@@ -396,6 +396,7 @@ class FileListActivity : ComponentActivity() {
             path.endsWith(".mpeg", true) ||
             path.endsWith(".webm", true) ||
             path.endsWith(".ts", true) ||
+                path.endsWith(".dat", true) ||
             path.endsWith(".3gp", true)
     }
     

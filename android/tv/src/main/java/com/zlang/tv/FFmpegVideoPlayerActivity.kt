@@ -324,18 +324,30 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
                     eventTime: AnalyticsListener.EventTime,
                     audioSinkError: Exception
                 ) {
-                    Log.e(TAG, "onAudioSinkError", audioSinkError)
+                    Log.e(TAG, "onAudioSinkError:" + eventTime.eventPlaybackPositionMs + "/" + eventTime.currentTimeline)
                     if (audioSinkError is AudioSink.UnexpectedDiscontinuityException) {
                         Log.e("Player", "Audio discontinuity: ${audioSinkError.message}")
                         // 处理音频时间戳不连续异常
-                        player?.stop()
-                        val position = eventTime.eventPlaybackPositionMs
+                        var position = eventTime.eventPlaybackPositionMs
+                        val pSeek = (videoSeekBar.progress.toLong() * videoDuration) / 100
+                        if (position > videoDuration || (pSeek - position) > 5000)
+                        {
+                            position = pSeek
+                        }
+                        if (position > 2000)
+                        {
+                            position -= 2000
+                        }
                         startVideoFromPosition(position)
+
+                        //createIntent(this@FFmpegVideoPlayerActivity, currentVideoPath, position, serverIp, true)
+                        //this@FFmpegVideoPlayerActivity.startActivity(intent)
+                        //this@FFmpegVideoPlayerActivity.finish()
                     } else {
                         // 处理其他异常
-                        player?.stop()
-                        val position = eventTime.eventPlaybackPositionMs
-                        startVideoFromPosition(position)
+                        //player?.stop()
+                        //val position = eventTime.eventPlaybackPositionMs
+                        //startVideoFromPosition(position)
                     }
                 }
             })

@@ -20,6 +20,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.AudioSink.UnexpectedDiscontinuityException
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -317,6 +318,30 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
                     }
                 }
             })
+
+            player?.addAnalyticsListener(object : AnalyticsListener {
+                override fun onAudioSinkError(
+                    eventTime: AnalyticsListener.EventTime,
+                    audioSinkError: Exception
+                ) {
+                    Log.e(TAG, "onAudioSinkError", audioSinkError)
+                    if (audioSinkError is AudioSink.UnexpectedDiscontinuityException) {
+                        Log.e("Player", "Audio discontinuity: ${audioSinkError.message}")
+                        // 处理音频时间戳不连续异常
+                        player?.stop()
+                        val position = eventTime.eventPlaybackPositionMs
+                        startVideoFromPosition(position)
+                    } else {
+                        // 处理其他异常
+                        player?.stop()
+                        val position = eventTime.eventPlaybackPositionMs
+                        startVideoFromPosition(position)
+                    }
+                }
+            })
+
+
+
 
         } catch (e: Exception) {
             Log.e(TAG, "Error setting up player", e)

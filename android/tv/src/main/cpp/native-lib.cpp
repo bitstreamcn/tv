@@ -30,11 +30,13 @@ static jmethodID handleEventMethodID = nullptr;
 
 TcpClient* gclient = nullptr;
 
+JavaVM* g_jvm = nullptr;
+
 extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
     // 获取回调类引用
     JNIEnv* env;
     vm->GetEnv((void**)&env, JNI_VERSION_1_6);
-
+    g_jvm = vm;
 
     // 获取Kotlin单例类
     jclass clazz = env->FindClass("com/zlang/tv/TcpControlClient");
@@ -58,10 +60,12 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
             "([B)Z"
     );
 
-    std::thread([&env](){
+    std::thread([](){
         while(true) {
             std::vector<uint8_t> response;
             if (gclient != nullptr && gclient->receiveResponse(response)) {
+                JNIEnv* env;
+                g_jvm->AttachCurrentThread(&env, nullptr);
                 jbyteArray resData = env->NewByteArray(response.size());
                 env->SetByteArrayRegion(resData, 0, response.size(),
                                         reinterpret_cast<jbyte*>(response.data()));
@@ -70,6 +74,7 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
                         handleEventMethodID,
                         resData
                 );
+                g_jvm->DetachCurrentThread();
             }
             std::this_thread::sleep_for(10ms);
         }

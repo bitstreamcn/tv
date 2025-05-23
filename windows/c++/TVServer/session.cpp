@@ -423,6 +423,7 @@ void Session::control_fun()
             else if (cmd["action"] == "list") {
                 std::string currentPath = cmd["path"];
                 response = getDirectoryContent(currentPath);
+                response["reqid"] = reqid;
                 std::string json_str = response.dump();
                 //log(json_str);
             }

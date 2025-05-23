@@ -42,6 +42,7 @@ object TcpControlClient {
     {
         try{
             val dataString = String(data, StandardCharsets.UTF_8)
+            Log.d("TcpControlClient", "response:" + dataString)
             val responseJson : JSONObject = JSONObject(dataString)
             val id = responseJson.optLong("reqid", 0)
             if (id == reqid) {
@@ -122,7 +123,8 @@ object TcpControlClient {
                 jsonReq.put("reqid", reqid)
                 responseData = null
                 isresponse = false
-                val requestData = jsonReq.toString().toByteArray(StandardCharsets.UTF_8)
+                val jsonString = jsonReq.toString()
+                val requestData = jsonString.toByteArray(StandardCharsets.UTF_8)
                 var waitms = 0
                 if (null == filename){
                     nativeSendRequest(nativeHandle, requestData) ?: noResponse
@@ -131,6 +133,7 @@ object TcpControlClient {
                     nativeSendRequestDownload(nativeHandle, reqid, requestData, filename) ?: noResponse
                     waitms = 1000 * 60 * 5
                 }
+                Log.d("TcpControlClient", "sendTlv:" + jsonString)
                 //等待返回
                 for (i in 0..waitms / 100){
                     Thread.sleep(100)
@@ -139,12 +142,15 @@ object TcpControlClient {
                         break
                     }
                 }
-
-                val responseJson : String = responseData?:"{}"
-                return JSONObject(responseJson).apply {
-                    if (optString("status", "fail") != "success") {
-                        //throw IllegalStateException(getString("message"))
+                if (isresponse) {
+                    val responseJson: String = responseData ?: "{}"
+                    return JSONObject(responseJson).apply {
+                        if (optString("status", "fail") != "success") {
+                            //throw IllegalStateException(getString("message"))
+                        }
                     }
+                }else{
+                    return JSONObject()
                 }
             }
             else{

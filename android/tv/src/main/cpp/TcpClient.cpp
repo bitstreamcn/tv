@@ -8,6 +8,13 @@
 #include <errno.h>
 #include <thread>
 #include <chrono>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <android/log.h>  // Android日志输出
+
+#define LOG_TAG "BIN_WRITER"
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 using namespace std::chrono_literals;
 
@@ -96,6 +103,7 @@ void TcpClient::disconnect() {
         close(sockfd);
         sockfd = -1;
     }
+    responseDisconnect();
 }
 
 bool TcpClient::sendRequest(const std::vector<uint8_t>& data, bool download, const std::string filename) {
@@ -104,12 +112,26 @@ bool TcpClient::sendRequest(const std::vector<uint8_t>& data, bool download, con
     isdownload = download;
     if (download)
     {
+        /*
         if (file.is_open())
         {
             file.close();
         }
         file = std::ofstream(filename, std::ios::binary);
+        */
         begin_download = false;
+
+        if (fp != NULL)
+        {
+            fclose(fp);
+            fp = NULL;
+        }
+        fp = fopen(filename.c_str(), "wb");
+        if (fp == NULL) {
+            LOGE("fopen failed: path=%s, errno=%d(%s)", filename.c_str(), errno, strerror(errno));
+            //return -1;
+            return false;
+        }
     }
 
     // Build TLV packet
@@ -205,24 +227,69 @@ bool TcpClient::processReceivedData() {
         while (writesize < filesize && recvBuffer.size() > 0)
         {
             int realsize = std::min((size_t)(filesize - writesize), (size_t)recvBuffer.size());
+            /*
             file.write(reinterpret_cast<char*>(recvBuffer.data()), realsize);
+            if (file.fail()) {
+                // 获取错误码和描述
+                std::error_code ec(static_cast<int>(errno), std::generic_category());
+                std::cerr << "打开文件失败: " << ec.message()  << " (错误码: " << ec.value()  << ")\n";
+
+                // 常见错误码判断示例
+                if (ec == std::errc::permission_denied) {
+                    std::cerr << "具体原因: 权限不足，请检查文件路径访问权限\n";
+                } else if (ec == std::errc::no_such_file_or_directory) {
+                    std::cerr << "具体原因: 目录不存在，请确认路径是否正确\n";
+                }
+                else if (ec == std::errc::resource_unavailable_try_again){
+                    std::cerr << "具体原因: 资源暂时不可用\n";
+                }
+            }
+            */
+            if (fp != NULL) {
+                size_t written = fwrite(recvBuffer.data(), 1, realsize, fp);
+                if (written != realsize) {
+                    LOGE("fwrite incomplete: written=%zu, expected=%zu, errno=%d(%s)",
+                         written, realsize, errno, strerror(errno));
+                }
+            }
             writesize += realsize;
             recvBuffer.erase(recvBuffer.begin(), recvBuffer.begin() + realsize);
         }
         if (writesize == filesize)
         {
             //下载文件结束
-            file.flush();
+            //file.flush();
             begin_download = false;
             //发送返回包
             std::string str;
-            if (file.fail()) {
+
+            // 强制刷新缓冲区并检查错误（避免缓存延迟导致的写入失败）
+            if (fp == NULL || fflush(fp) != 0) {
+                LOGE("fflush failed: errno=%d(%s)", errno, strerror(errno));
+
+            //if (file.fail())
+            //{
                 str = "{\"reqid\":" + std::to_string(reqid) + ",\"status\":\"fail\"}";
+
+                /*
+                // 获取错误码和描述
+                std::error_code ec(static_cast<int>(errno), std::generic_category());
+                std::cerr << "打开文件失败: " << ec.message()  << " (错误码: " << ec.value()  << ")\n";
+
+                // 常见错误码判断示例
+                if (ec == std::errc::permission_denied) {
+                    std::cerr << "具体原因: 权限不足，请检查文件路径访问权限\n";
+                } else if (ec == std::errc::no_such_file_or_directory) {
+                    std::cerr << "具体原因: 目录不存在，请确认路径是否正确\n";
+                }
+                 */
             }
             else{
                 str = "{\"reqid\":" + std::to_string(reqid) + ",\"status\":\"success\"}";
             }
-            file.close();
+            //file.close();
+            fclose(fp);
+            fp = NULL;
             std::vector<uint8_t> vec(str.begin(), str.end());
             responseQueue.push(std::move(vec));
             cv.notify_all();
@@ -230,6 +297,26 @@ bool TcpClient::processReceivedData() {
     }
     return true;
 }
+
+void TcpClient::responseDisconnect()
+{
+    if (fp != NULL)
+    {
+        fclose(fp);
+        fp = NULL;
+    }
+    if (begin_download)
+    {
+        begin_download = false;
+    }
+    //发送返回包
+    std::string str = "{\"reqid\":" + std::to_string(reqid) + ",\"status\":\"disconnect\"}";
+    std::vector<uint8_t> vec(str.begin(), str.end());
+    responseQueue.push(std::move(vec));
+    cv.notify_all();
+}
+
+
 
 bool TcpClient::receiveResponse(std::vector<uint8_t>& outData, int timeoutMs) {
     std::unique_lock<std::mutex> lock(mutex);

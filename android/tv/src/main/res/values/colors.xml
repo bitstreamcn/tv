@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 基础颜色 -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- Loading对话框专用颜色 -->
+    <color name="loading_accent">#FF4CAF50</color>
+    <color name="loading_text">#FFFFFFFF</color>
+    <color name="loading_subtitle">#B3FFFFFF</color>
+    <color name="loading_background">#E61A1A1A</color>
+    <color name="loading_circle_bg">#334CAF50</color>
+    
+    <!-- 对话框阴影颜色 -->
+    <color name="dialog_shadow">#40000000</color>
+    
+    <!-- 退出对话框专用颜色 -->
+    <color name="exit_warning">#FFFF9800</color>
+    <color name="exit_text">#FFFFFFFF</color>
+    <color name="exit_button_cancel_text">#FF757575</color>
+    <color name="exit_button_confirm_text">#FFFFFFFF</color>
+    <color name="exit_dialog_bg">#E61A1A1A</color>
+    <color name="exit_header_bg">#FF2D2D2D</color>
+    <color name="exit_button_cancel_bg">#33434343</color>
+    <color name="exit_button_confirm_bg">#FFE53935</color>
+    
+    <!-- 后台预下载loading图标专用颜色 -->
+    <color name="background_loading_accent">#FF4CAF50</color>
+    <color name="background_loading_text">#FFFFFFFF</color>
+</resources>

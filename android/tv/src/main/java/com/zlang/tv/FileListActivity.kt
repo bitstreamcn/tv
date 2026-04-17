@@ -51,6 +51,7 @@ class FileListActivity : ComponentActivity() {
     private var currentPath: String = "drives"
     private var fileListAdapter: FileListAdapter? = null
     private val pathMap = HashMap<String, Int>() // 保存路径和对应的位置
+    private val fileItems = ArrayList<FileItem>() // 当前目录的文件列表
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,6 +81,11 @@ class FileListActivity : ComponentActivity() {
         super.onPause()
 
         PathRecordsManager.save(this)
+    }
+
+    override fun onDestroy(){
+        super.onDestroy()
+        TcpControlClient.breakRequest()
     }
     
     private fun initViews() {
@@ -124,11 +130,11 @@ class FileListActivity : ComponentActivity() {
                         val jsonResponse = response
                         if (jsonResponse.getString("status") == "success") {
                             val filesArray = jsonResponse.getJSONArray("items")
-                            val fileItems = ArrayList<FileItem>()
+                            fileItems.clear()
                             
                             // 首先添加上级目录（除了在根目录时）
                             if (currentPath != "drives") {
-                                fileItems.add(FileItem("...", "上级目录", "directory"))
+                                fileItems.add(FileItem("...", "上级目录", "directory", 0))
                             }
                             
                             // 添加目录
@@ -137,8 +143,8 @@ class FileListActivity : ComponentActivity() {
                                 val name = fileObj.getString("name")
                                 val path = fileObj.getString("path")
                                 val type = fileObj.getString("type")
-                                
-                                fileItems.add(FileItem(name, type, path))
+                                val size = fileObj.getLong("size")
+                                fileItems.add(FileItem(name, type, path, size))
                             }
                             
                             // 更新适配器
@@ -377,6 +383,10 @@ class FileListActivity : ComponentActivity() {
                         }
                     }.start()
                 }
+                else if (isImageFile(item.path)) {
+                    // 处理图片文件
+                    handleImageFileClick(item.path)
+                }
                 else {
                     showToast("不支持的文件类型")
                 }
@@ -397,7 +407,57 @@ class FileListActivity : ComponentActivity() {
             path.endsWith(".webm", true) ||
             path.endsWith(".ts", true) ||
                 path.endsWith(".dat", true) ||
-            path.endsWith(".3gp", true)
+            path.endsWith(".3gp", true) ||
+                path.endsWith(".vob", true) ||
+                path.endsWith(".m2ts", true)
+    }
+
+    private fun isImageFile(path: String): Boolean {
+        return path.endsWith(".jpg", true) ||
+            path.endsWith(".jpeg", true) ||
+            path.endsWith(".png", true) ||
+            path.endsWith(".bmp", true) ||
+            path.endsWith(".gif", true) ||
+            path.endsWith(".webp", true) ||
+            path.endsWith(".tiff", true) ||
+            path.endsWith(".tif", true) ||
+            path.endsWith(".ico", true) ||
+            path.endsWith(".svg", true) ||
+            path.endsWith(".raw", true) ||
+            path.endsWith(".cr2", true) ||
+            path.endsWith(".nef", true) ||
+            path.endsWith(".arw", true) ||
+            path.endsWith(".dng", true) ||
+            path.endsWith(".orf", true) ||
+            path.endsWith(".sr2", true) ||
+            path.endsWith(".pef", true) ||
+            path.endsWith(".x3f", true) ||
+            path.endsWith(".rw2", true) ||
+            path.endsWith(".raf", true) ||
+            path.endsWith(".srw", true) ||
+            path.endsWith(".mrw", true) ||
+            path.endsWith(".mef", true) ||
+            path.endsWith(".dcr", true) ||
+            path.endsWith(".kdc", true) ||
+            path.endsWith(".erf", true) ||
+            path.endsWith(".mdc", true) ||
+            path.endsWith(".mos", true) ||
+            path.endsWith(".fff", true) ||
+            path.endsWith(".ptx", true) ||
+            path.endsWith(".r3d", true) ||
+            path.endsWith(".rwl", true) ||
+            path.endsWith(".srf", true) ||
+            path.endsWith(".sr2", true) ||
+            path.endsWith(".bay", true) ||
+            path.endsWith(".cap", true) ||
+            path.endsWith(".iiq", true) ||
+            path.endsWith(".eip", true) ||
+            path.endsWith(".3fr", true) ||
+            path.endsWith(".mef", true) ||
+            path.endsWith(".nrw", true) ||
+            path.endsWith(".rwz", true) ||
+            path.endsWith(".srw", true) ||
+            path.endsWith(".x3f", true)
     }
     
     private fun showVideoOptionsDialog(videoPath: String) {
@@ -417,6 +477,8 @@ class FileListActivity : ComponentActivity() {
         val openFfmpegOption = dialog.findViewById<TextView>(R.id.openFfmpegOption)
         val encodeOption = dialog.findViewById<TextView>(R.id.encodeOption)
         val aacEncodeOption = dialog.findViewById<TextView>(R.id.aacEncodeOption)
+        val makeSrtOption = dialog.findViewById<TextView>(R.id.makeSrtOption)
+        val bdmvEncOption = dialog.findViewById<TextView>(R.id.bdmvEncOption)
         
         // 设置默认焦点
         dialog.setOnShowListener {
@@ -470,6 +532,16 @@ class FileListActivity : ComponentActivity() {
             dialog.dismiss()
             sendAACEncodeCommand(videoPath)
         }
+
+        bdmvEncOption.setOnClickListener{
+            dialog.dismiss()
+            sendBdmvEncCommand(videoPath)
+        }
+
+        makeSrtOption.setOnClickListener{
+            dialog.dismiss()
+            sendMakeSrtCommand(videoPath)
+        }
         
         dialog.show()
     }
@@ -511,6 +583,51 @@ class FileListActivity : ComponentActivity() {
                         return@runOnUiThread
                     }
                     
+                    try {
+                        val jsonResponse = response
+                        if (jsonResponse.getString("status") == "success") {
+                            showToast("编码命令已发送，请稍后查看")
+                        } else {
+                            val errorMessage = jsonResponse.optString("message", "未知错误")
+                            showToast("编码命令失败: $errorMessage")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "解析编码响应出错", e)
+                        showToast("解析编码响应出错")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "发送编码命令出错", e)
+                runOnUiThread {
+                    showLoading(false)
+                    showToast("发送编码命令出错")
+                }
+            }
+        }.start()
+    }
+
+    private fun sendBdmvEncCommand(videoPath: String) {
+        showLoading(true)
+
+        Thread {
+            try {
+                val command = JSONObject().apply {
+                    put("action", "bdmv_enc")
+                    put("path", videoPath)
+                }
+
+                val commandStr = command.toString()
+                Log.d(TAG, "发送编码命令: $commandStr")
+                val response = TcpControlClient.sendTlv(commandStr)
+
+                runOnUiThread {
+                    showLoading(false)
+
+                    if (response == null) {
+                        showToast("发送编码命令失败")
+                        return@runOnUiThread
+                    }
+
                     try {
                         val jsonResponse = response
                         if (jsonResponse.getString("status") == "success") {
@@ -578,6 +695,52 @@ class FileListActivity : ComponentActivity() {
             }
         }.start()
     }
+
+    private fun sendMakeSrtCommand(videoPath: String) {
+        showLoading(true)
+
+        Thread {
+            try {
+                val command = JSONObject().apply {
+                    put("action", "makesrt")
+                    put("path", videoPath)
+                }
+
+                val commandStr = command.toString()
+                Log.d(TAG, "发送srt命令: $commandStr")
+                val response = TcpControlClient.sendTlv(commandStr)
+
+                runOnUiThread {
+                    showLoading(false)
+
+                    if (response == null) {
+                        showToast("发送srt命令失败")
+                        return@runOnUiThread
+                    }
+
+                    try {
+                        val jsonResponse = response
+                        if (jsonResponse.getString("status") == "success") {
+                            showToast("srt命令已发送，请稍后查看")
+                        } else {
+                            val errorMessage = jsonResponse.optString("message", "未知错误")
+                            showToast("srt命令失败: $errorMessage")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "解析srt响应出错", e)
+                        showToast("解析srt响应出错")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "发送srt命令出错", e)
+                runOnUiThread {
+                    showLoading(false)
+                    showToast("发送srt命令出错")
+                }
+            }
+        }.start()
+    }
+
     
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
@@ -609,5 +772,52 @@ class FileListActivity : ComponentActivity() {
     
     private fun showToast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun handleImageFileClick(clickedImagePath: String) {
+        // 获取当前目录中的所有图片文件
+        val imageFiles = getImageFilesInCurrentDirectory()
+        
+        if (imageFiles.isEmpty()) {
+            showToast("当前目录没有图片文件")
+            return
+        }
+        
+        // 找到点击的图片在列表中的索引
+        val currentIndex = imageFiles.indexOfFirst { it == clickedImagePath }
+        
+        if (currentIndex == -1) {
+            // 如果点击的图片不在列表中，使用单张图片模式
+            openSingleImage(clickedImagePath)
+        } else {
+            // 使用图片列表模式打开
+            openImageList(imageFiles, currentIndex)
+        }
+    }
+
+    private fun getImageFilesInCurrentDirectory(): ArrayList<String> {
+        val imageFiles = ArrayList<String>()
+        
+        // 从fileItems中获取图片文件路径
+        fileItems.forEach { fileItem ->
+            if (fileItem.type == "file" && isImageFile(fileItem.path)) {
+                imageFiles.add(fileItem.path)
+            }
+        }
+        
+        // 按文件名排序
+        //imageFiles.sort()
+        
+        return imageFiles
+    }
+
+    private fun openSingleImage(imagePath: String) {
+        val intent = PhotoViewerActivity.createIntent(this, imagePath, serverIp)
+        startActivity(intent)
+    }
+
+    private fun openImageList(imageList: ArrayList<String>, currentIndex: Int) {
+        val intent = PhotoViewerActivity.createIntent(this, imageList, currentIndex, serverIp)
+        startActivity(intent)
     }
 }

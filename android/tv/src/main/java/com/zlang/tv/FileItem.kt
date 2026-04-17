@@ -3,5 +3,6 @@ package com.zlang.tv
 data class FileItem(
     val name: String,
     val type: String,
-    val path: String
+    val path: String,
+    val size: Long
 ) 

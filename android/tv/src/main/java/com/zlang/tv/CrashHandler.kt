@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Looper
 import android.util.Log
 import android.widget.Toast
+import java.io.File
 import java.io.FileOutputStream
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -126,9 +127,20 @@ class CrashHandler private constructor() : UncaughtExceptionHandler {
             val formatter = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss", Locale.getDefault())
             val time = formatter.format(Date())
             val fileName = "crash-$time.log"
-            val fos = context.openFileOutput(fileName, Context.MODE_PRIVATE)
-            fos.write(sb.toString().toByteArray())
-            fos.close()
+            val crashdir = File(context.getExternalFilesDir(null), "crash")
+            if (!crashdir.exists()) {
+                crashdir.mkdirs()
+            }
+            run{
+                val fos = context.openFileOutput(fileName, Context.MODE_PRIVATE)
+                fos.write(sb.toString().toByteArray())
+                fos.close()
+            }
+            run{
+                val fos = FileOutputStream(File(crashdir, fileName))
+                fos.write(sb.toString().toByteArray())
+                fos.close()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error while writing crash info to file", e)
         }

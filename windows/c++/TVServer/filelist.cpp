@@ -19,6 +19,7 @@ json getDrives() {
         driveInfo["name"] = convertToUTF8(std::string("驱动器(") + drive + ")");
         driveInfo["type"] = "drive";
         driveInfo["path"] = convertToUTF8(drive);
+        driveInfo["size"] = 0L;
         drives["items"].push_back(driveInfo);
     }
     return drives;
@@ -76,6 +77,19 @@ bool naturalSort(const fs::path& a, const fs::path& b) {
 }
 
 
+std::string filename(const fs::path& path)
+{
+    const std::filesystem::path &fullPath = path; // full path
+    std::string fullUtf8Path = fullPath.u8string();
+
+    // 找到最后一个分隔符，提取文件名
+    size_t pos = fullUtf8Path.find_last_of("/\\");
+    std::string filename = (pos == std::string::npos)
+        ? fullUtf8Path
+        : fullUtf8Path.substr(pos + 1);
+    return filename;
+}
+
 // 获取目录内容
 json getDirectoryContent(const std::string& path) {
 
@@ -89,16 +103,18 @@ json getDirectoryContent(const std::string& path) {
         return getDrives();
     }
 
-    _path = UTF8ToGB2312(_path);
-
     json result;
     try {
+        bool hasEx = false;
         result["status"] = "success";
-        result["current_path"] = convertToUTF8(fs::canonical(_path).string());
+
+        std::filesystem::path p = std::filesystem::u8path(path);  // 明确是 UTF-8
+        result["current_path"] = p.u8string();
         result["items"] = json::array();
         std::vector<fs::path> dirs;
         std::vector<fs::path> files;
-        for (const auto& entry : fs::directory_iterator(_path)) {
+        
+        for (const auto& entry : fs::directory_iterator(p)) {
             if (entry.is_directory())
             {
                 dirs.push_back(entry.path());
@@ -112,18 +128,20 @@ json getDirectoryContent(const std::string& path) {
         for (const auto& file : dirs) {
             //std::cout << file.filename() << std::endl;
             json item;
-            item["name"] = convertToUTF8(file.filename().string());
+            item["name"] = filename(file);
             item["type"] = "directory";
-            item["path"] = convertToUTF8(file.string());
+            item["path"] = file.u8string();
+            item["size"] = 0L;
             result["items"].push_back(item);
         }
         // 输出排序后的文件列表
         for (const auto& file : files) {
             //std::cout << file.filename() << std::endl;
             json item;
-            item["name"] = convertToUTF8(file.filename().string());
+            item["name"] = filename(file);
             item["type"] = "file";
-            item["path"] = convertToUTF8(file.string());
+            item["path"] = file.u8string();
+            item["size"] = std::filesystem::file_size(file);
             result["items"].push_back(item);
         }
     }

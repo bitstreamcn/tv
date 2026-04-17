@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/background_loading_bg"
+    android:padding="8dp"
+    android:gravity="center">
+
+    <!-- 小圆形进度指示器 -->
+    <ProgressBar
+        android:id="@+id/backgroundLoadingProgress"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_marginEnd="6dp"
+        android:indeterminateTint="@color/background_loading_accent"
+        android:indeterminateTintMode="src_in"/>
+        
+    <!-- 加载文字 -->
+    <TextView
+        android:id="@+id/backgroundLoadingText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="预加载中..."
+        android:textColor="@color/background_loading_text"
+        android:textSize="12sp"
+        android:textStyle="bold"/>
+
+</LinearLayout>

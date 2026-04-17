@@ -78,6 +78,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
 
     implementation("com.google.code.gson:gson:2.7")
+    implementation(libs.androidx.monitor)
     // Media3 依赖
     val media3_version = "1.6.0"
 

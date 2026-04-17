@@ -1,22 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
+    android:layout_width="280dp"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@drawable/dialog_background"
-    android:padding="24dp"
-    android:gravity="center">
+    android:background="@drawable/loading_dialog_background"
+    android:padding="32dp"
+    android:gravity="center"
+    android:elevation="8dp">
 
-    <ProgressBar
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginBottom="16dp"/>
+    <!-- 圆形进度指示器容器 -->
+    <FrameLayout
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_marginBottom="20dp"
+        android:background="@drawable/loading_circle_bg">
+        
+        <!-- 旋转进度条 -->
+        <ProgressBar
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center"
+            android:indeterminateTint="@color/loading_accent"
+            android:indeterminateTintMode="src_in"/>
+            
+        <!-- 中心图标 -->
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_loading"
+            android:tint="@color/loading_accent"/>
+    </FrameLayout>
 
+    <!-- 加载文字 -->
     <TextView
+        android:id="@+id/messageTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="正在搜索服务器..."
-        android:textColor="@android:color/white"
-        android:textSize="16sp"/>
+        android:text="正在加载..."
+        android:textColor="@color/loading_text"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.02"
+        android:layout_marginBottom="8dp"/>
+        
+    <!-- 副标题文字 -->
+    <TextView
+        android:id="@+id/subtitleTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="请稍候"
+        android:textColor="@color/loading_subtitle"
+        android:textSize="14sp"
+        android:alpha="0.7"/>
 
 </LinearLayout> 

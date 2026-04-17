@@ -11,6 +11,7 @@
 #include <sys/time.h>
 #include <unordered_set>
 #include <chrono>
+#include <shared_mutex>
 
 #define LOG_TAG "NativeTCP"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
@@ -28,6 +29,7 @@ static jclass singletonClass = nullptr;
 static jobject singletonInstance = nullptr;
 static jmethodID handleEventMethodID = nullptr;
 
+std::shared_mutex gclient_mtx;
 TcpClient* gclient = nullptr;
 
 JavaVM* g_jvm = nullptr;
@@ -61,11 +63,24 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
     );
 
     std::thread([](){
+        JNIEnv* env;
+        g_jvm->AttachCurrentThread(&env, nullptr);
         while(true) {
             std::vector<uint8_t> response;
-            if (gclient != nullptr && gclient->receiveResponse(response)) {
-                JNIEnv* env;
-                g_jvm->AttachCurrentThread(&env, nullptr);
+            bool have_response = false;
+            {
+                std::shared_lock<std::shared_mutex> lock(gclient_mtx);
+                have_response = (gclient != nullptr && gclient->receiveResponse(response, 100));
+                if (gclient == nullptr)
+                {
+                    have_response = true;
+                    std::string str = "{\"reqid\":0,\"status\":\"fail\"}";
+                    std::vector<uint8_t> vec(str.begin(), str.end());
+                    response = vec;
+                }
+            }
+            if (have_response) {
+
                 jbyteArray resData = env->NewByteArray(response.size());
                 env->SetByteArrayRegion(resData, 0, response.size(),
                                         reinterpret_cast<jbyte*>(response.data()));
@@ -74,10 +89,11 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
                         handleEventMethodID,
                         resData
                 );
-                g_jvm->DetachCurrentThread();
+                env->DeleteLocalRef(resData);
             }
             std::this_thread::sleep_for(10ms);
         }
+        g_jvm->DetachCurrentThread();
     }).detach();
 
     return JNI_VERSION_1_6;
@@ -181,6 +197,7 @@ Java_com_zlang_tv_TcpControlClient_nativeSendBroadcastAndReceive(JNIEnv *env, jo
 
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_zlang_tv_TcpControlClient_nativeCreateClient(JNIEnv* /*env*/, jclass /*clazz*/) {
+    std::unique_lock<std::shared_mutex> lock(gclient_mtx);
     gclient = new TcpClient() ;
     return reinterpret_cast<jlong>(gclient);
 }
@@ -188,9 +205,13 @@ Java_com_zlang_tv_TcpControlClient_nativeCreateClient(JNIEnv* /*env*/, jclass /*
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_zlang_tv_TcpControlClient_nativeConnect(
     JNIEnv* env, jclass /*clazz*/, jlong handle, jstring ip, jint port) {
-    
+    std::shared_lock<std::shared_mutex> lock(gclient_mtx);
     const char* c_ip = env->GetStringUTFChars(ip, nullptr);
     TcpClient* client = reinterpret_cast<TcpClient*>(handle);
+    if (nullptr == gclient || gclient != client)
+    {
+        return static_cast<jboolean>(false);
+    }
     bool success = client->connect(c_ip, static_cast<int>(port));
     env->ReleaseStringUTFChars(ip, c_ip);
     
@@ -200,16 +221,25 @@ Java_com_zlang_tv_TcpControlClient_nativeConnect(
 extern "C" JNIEXPORT void JNICALL
 Java_com_zlang_tv_TcpControlClient_nativeDisconnect(
     JNIEnv* /*env*/, jclass /*clazz*/, jlong handle) {
-    
+    std::shared_lock<std::shared_mutex> lock(gclient_mtx);
     TcpClient* client = reinterpret_cast<TcpClient*>(handle);
+    if (nullptr == gclient || gclient != client)
+    {
+        return;
+    }
     client->disconnect();
 }
 
-extern "C" JNIEXPORT jbyteArray JNICALL
+extern "C" JNIEXPORT jboolean JNICALL
 Java_com_zlang_tv_TcpControlClient_nativeSendRequest(
     JNIEnv* env, jclass /*clazz*/, jlong handle, jbyteArray data) {
-    
+    std::shared_lock<std::shared_mutex> lock(gclient_mtx);
     TcpClient* client = reinterpret_cast<TcpClient*>(handle);
+
+    if (nullptr == gclient || gclient != client)
+    {
+        return false;
+    }
     
     jsize length = env->GetArrayLength(data);
     jbyte* bytes = env->GetByteArrayElements(data, nullptr);
@@ -219,18 +249,22 @@ Java_com_zlang_tv_TcpControlClient_nativeSendRequest(
     env->ReleaseByteArrayElements(data, bytes, JNI_ABORT);
     
     if (!sendSuccess) {
-        return nullptr;
+        return false;
     }
 
-    return nullptr;
+    return true;
 }
 
-extern "C" JNIEXPORT jbyteArray JNICALL
+extern "C" JNIEXPORT jboolean JNICALL
 Java_com_zlang_tv_TcpControlClient_nativeSendRequestDownload(
         JNIEnv* env, jclass /*clazz*/, jlong handle, jlong reqid, jbyteArray data, jstring filename) {
 
+    std::shared_lock<std::shared_mutex> lock(gclient_mtx);
     TcpClient* client = reinterpret_cast<TcpClient*>(handle);
-
+    if (nullptr == gclient || gclient != client)
+    {
+        return false;
+    }
     client->reqid = reqid;
 
     const char* c_filename = env->GetStringUTFChars(filename, nullptr);
@@ -244,7 +278,7 @@ Java_com_zlang_tv_TcpControlClient_nativeSendRequestDownload(
     env->ReleaseStringUTFChars(filename, c_filename);
 
     if (!sendSuccess) {
-        return nullptr;
+        return false;
     }
 /*
     std::vector<uint8_t> response;
@@ -256,20 +290,31 @@ Java_com_zlang_tv_TcpControlClient_nativeSendRequestDownload(
         return result;
     }
  */
-    return nullptr;
+    return true;
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_zlang_tv_TcpControlClient_nativeDestroyClient(
     JNIEnv* /*env*/, jclass /*clazz*/, jlong handle) {
-    
-    delete reinterpret_cast<TcpClient*>(handle);
+    std::unique_lock<std::shared_mutex> lock(gclient_mtx);
+    TcpClient* client = reinterpret_cast<TcpClient*>(handle);
+    if (gclient == nullptr || gclient != client)
+    {
+        return;
+    }
+    gclient = nullptr;
+    delete client;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_zlang_tv_TcpControlClient_nativeisRunning(
     JNIEnv* /*env*/, jclass /*clazz*/, jlong handle) {
+    std::shared_lock<std::shared_mutex> lock(gclient_mtx);
     TcpClient* client = reinterpret_cast<TcpClient*>(handle);
+    if (nullptr == gclient || gclient != client)
+    {
+        return static_cast<jboolean>(false);
+    }
     
     return static_cast<jboolean>(client->isRunning());
 }

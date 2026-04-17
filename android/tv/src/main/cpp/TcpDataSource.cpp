@@ -46,12 +46,12 @@ bool TcpDataSource::connect(const char* ip, int port) {
     std::lock_guard<std::mutex> lock(socket_mutex_);
 
     memset(&gRunStatus, 0, sizeof(gRunStatus));
-    
+
     server_ip_ = ip;
     server_port_ = port;
 
     reconnect_attempts_ = 0;
-    
+
     if (!reconnect()) {
         if (error_callback_) {
             error_callback_("Initial connection failed");
@@ -67,15 +67,15 @@ bool TcpDataSource::connect(const char* ip, int port) {
 
 void TcpDataSource::disconnect() {
     running_ = false;
-    
+
     if (receiver_thread_.joinable()) {
         receiver_thread_.join();
     }
-    
+
     if (heartbeat_thread_.joinable()) {
         heartbeat_thread_.join();
     }
-    
+
     std::lock_guard<std::mutex> lock(socket_mutex_);
     if (sockfd_ != -1) {
         ::close(sockfd_);
@@ -125,7 +125,7 @@ void TcpDataSource::receiverThread() {
                     std::cout << "TcpDataSource::receiverThread buffer full" << std::endl;
                 }
                 gRunStatus.recv_data_size += received;
-                recvBuffer.insert(recvBuffer.end(), buffer.begin(), 
+                recvBuffer.insert(recvBuffer.end(), buffer.begin(),
                                 buffer.begin() + received);
                 processReceivedData();
 
@@ -167,7 +167,7 @@ bool TcpDataSource::processReceivedData() {
         if (recvBuffer.size() >= totalSize) {
             size_t written = 0;
             while (written < static_cast<size_t>(length)) {
-                written += buffer_.write(recvBuffer.data() + HEADER_SIZE + written, 
+                written += buffer_.write(recvBuffer.data() + HEADER_SIZE + written,
                                         length - written);
                 if (written < static_cast<size_t>(length)) {
                     //缓冲区满了，应该增加缓冲区

@@ -9,6 +9,7 @@ import android.view.MotionEvent
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import kotlin.concurrent.thread
 import kotlinx.coroutines.delay
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -32,8 +33,8 @@ object TcpControlClient {
     private external fun nativeCreateClient(): Long
     private external fun nativeConnect(handle: Long, ip: String, port: Int): Boolean
     private external fun nativeDisconnect(handle: Long)
-    private external fun nativeSendRequest(handle: Long, data: ByteArray): ByteArray?
-    private external fun nativeSendRequestDownload(handle: Long, reqid: Long, data: ByteArray, filename: String): ByteArray?
+    private external fun nativeSendRequest(handle: Long, data: ByteArray): Boolean
+    private external fun nativeSendRequestDownload(handle: Long, reqid: Long, data: ByteArray, filename: String): Boolean
     private external fun nativeDestroyClient(handle: Long)
     private external fun nativeisRunning(handle: Long): Boolean
     external fun nativeSendBroadcastAndReceive(list: ArrayList<String>, timeoutSeconds: Int)
@@ -65,6 +66,8 @@ object TcpControlClient {
     private var reqid : Long = 1
     private var isresponse : Boolean = false
     private var responseData : String? = null
+
+    private var breakRequestFlag : Boolean = false
 
     private val task = object : TimerTask() {
         override fun run() {
@@ -109,7 +112,12 @@ object TcpControlClient {
         synchronized(this) {
             this.serverIp = serverIp
         }
+        Log.d("TcpControlClient", "connect:" + serverIp)
         checkAndReconnect()
+    }
+
+    fun breakRequest(){
+        breakRequestFlag = true
     }
 
     fun sendTlv(json: String, filename: String? = null): JSONObject {
@@ -117,6 +125,7 @@ object TcpControlClient {
         synchronized(this) {
             if (nativeHandle != 0L)
             {
+                breakRequestFlag = false
                 val noResponse = "{}".toByteArray()
                 val jsonReq : JSONObject = JSONObject(json)
                 reqid++
@@ -126,12 +135,19 @@ object TcpControlClient {
                 val jsonString = jsonReq.toString()
                 val requestData = jsonString.toByteArray(StandardCharsets.UTF_8)
                 var waitms = 0
+                var sendResult = false
                 if (null == filename){
-                    nativeSendRequest(nativeHandle, requestData) ?: noResponse
-                    waitms = 5000
+                    sendResult = nativeSendRequest(nativeHandle, requestData)
+                    waitms = 1000 * 60 * 5 //5分钟
                 }else{
-                    nativeSendRequestDownload(nativeHandle, reqid, requestData, filename) ?: noResponse
-                    waitms = 1000 * 60 * 5
+                    sendResult = nativeSendRequestDownload(nativeHandle, reqid, requestData, filename)
+                    waitms = 1000 * 60 * 5 //5分钟
+                }
+                if (!sendResult)
+                {
+                    nativeDestroyClient(nativeHandle)
+                    nativeHandle = 0
+                    return JSONObject()
                 }
                 Log.d("TcpControlClient", "sendTlv:" + jsonString)
                 //等待返回
@@ -141,15 +157,23 @@ object TcpControlClient {
                     {
                         break
                     }
+                    if (breakRequestFlag)
+                    {
+                        break
+                    }
                 }
                 if (isresponse) {
                     val responseJson: String = responseData ?: "{}"
                     return JSONObject(responseJson).apply {
-                        if (optString("status", "fail") != "success") {
+                        if (optString("status", "fail").equals("disconnect")) {
                             //throw IllegalStateException(getString("message"))
+                            nativeDestroyClient(nativeHandle)
+                            nativeHandle = 0
                         }
                     }
                 }else{
+                    nativeDestroyClient(nativeHandle)
+                    nativeHandle = 0
                     return JSONObject()
                 }
             }

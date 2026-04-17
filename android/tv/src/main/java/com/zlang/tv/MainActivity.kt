@@ -2,6 +2,7 @@ package com.zlang.tv
 
 import android.app.Dialog
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.Handler
@@ -20,11 +21,13 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
@@ -55,6 +58,7 @@ import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.os.Process
 
 
 class MainActivity : ComponentActivity() {
@@ -93,7 +97,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var totalTimeText: TextView
     private lateinit var loadingDialog: Dialog
     private var serverIp = "192.168.2.80"
-    private val serverPort = 9999
+    private val serverPort = 21313
     private var currentPath = "drives"
     private var socket: Socket? = null
     private var reader: BufferedReader? = null
@@ -160,7 +164,22 @@ class MainActivity : ComponentActivity() {
         timeTextView.text = currentTime
     }
 
+    private val requestStoragePermission = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions() // 多权限申请合约
+    ) { permissions ->
+        // 权限申请结果处理（Kotlin的Map解构更直观）
+        val isWriteGranted = permissions["android.permission.WRITE_EXTERNAL_STORAGE"] == true
+        val isReadGranted = permissions["android.permission.READ_EXTERNAL_STORAGE"] == true
 
+        when {
+            isWriteGranted && isReadGranted -> {
+                // 所有权限授予，执行文件操作（协程替代Thread更优雅）
+            }
+            else -> {
+                Toast.makeText(this,  "存储权限被拒绝，无法保存文件", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     @OptIn(ExperimentalTvMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -227,6 +246,29 @@ class MainActivity : ComponentActivity() {
         }.start()
 
         PathRecordsManager.init(this)
+
+        checkStoragePermission()
+    }
+
+    /**
+     * 检查存储权限，无权限则发起申请
+     */
+    private fun checkStoragePermission() {
+        val requiredPermissions = arrayOf(
+            "android.permission.READ_EXTERNAL_STORAGE",
+            "android.permission.WRITE_EXTERNAL_STORAGE"
+        )
+
+        // 判断是否已有全部权限（使用all{}高阶函数简化逻辑）
+        val hasAllPermissions = requiredPermissions.all  { permission ->
+            ContextCompat.checkSelfPermission(this,  permission) == PackageManager.PERMISSION_GRANTED
+        }
+
+        if (hasAllPermissions) {
+            //executeFileOperation() // 已有权限，直接执行操作
+        } else {
+            requestStoragePermission.launch(requiredPermissions)  // 发起权限申请
+        }
     }
 
     private fun initializeViews() {
@@ -387,7 +429,7 @@ class MainActivity : ComponentActivity() {
         // 删除播放器相关的初始化
         connectToServerWithRetry()
 
-        LogcatRunner.getInstance().config(LogcatRunner.LogConfig.builder().write2File(true)).start()
+        LogcatRunner.getInstance().config(LogcatRunner.LogConfig.builder().write2File(false)).start()
     }
 
 
@@ -613,7 +655,8 @@ class MainActivity : ComponentActivity() {
                             FileItem(
                                 name = item.getString("name"),
                                 type = item.getString("type"),
-                                path = item.getString("path")
+                                path = item.getString("path"),
+                                size = item.getLong("size")
                             )
                         )
                     }
@@ -957,6 +1000,10 @@ class MainActivity : ComponentActivity() {
                         showMainInterface()
                     }
                     return true
+                } else {
+                    // 在主界面按下返回键，显示退出确认对话框
+                    showExitConfirmationDialog()
+                    return true
                 }
             }
         }
@@ -965,6 +1012,84 @@ class MainActivity : ComponentActivity() {
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         return super.onKeyUp(keyCode, event)
+    }
+
+    private fun showExitConfirmationDialog() {
+        runOnUiThread {
+            val dialogView = layoutInflater.inflate(R.layout.dialog_exit_confirm, null)
+            val titleTextView = dialogView.findViewById<TextView>(R.id.titleTextView)
+            val messageTextView = dialogView.findViewById<TextView>(R.id.messageTextView)
+            val cancelButton = dialogView.findViewById<TextView>(R.id.cancelButton)
+            val confirmButton = dialogView.findViewById<TextView>(R.id.confirmButton)
+            
+            // 设置对话框内容
+            titleTextView.text = "退出确认"
+            messageTextView.text = "确定要退出应用吗？"
+            
+            // 创建自定义对话框
+            val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(true)
+                .create()
+            
+            // 设置对话框背景透明，让自定义背景生效
+            dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+            
+            // 设置按钮点击事件
+            cancelButton.setOnClickListener {
+                dialog.dismiss()
+            }
+            
+            confirmButton.setOnClickListener {
+
+                try {
+                    Process.killProcess(Process.myPid());
+                }
+                catch(e : Exception){
+
+                }
+                System.exit(0)
+
+            }
+            
+            // 设置焦点和按键监听
+            cancelButton.setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    when (keyCode) {
+                        KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                            confirmButton.requestFocus()
+                            return@setOnKeyListener true
+                        }
+                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                            dialog.dismiss()
+                            return@setOnKeyListener true
+                        }
+                    }
+                }
+                false
+            }
+            
+            confirmButton.setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    when (keyCode) {
+                        KeyEvent.KEYCODE_DPAD_LEFT -> {
+                            cancelButton.requestFocus()
+                            return@setOnKeyListener true
+                        }
+                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                            dialog.dismiss()
+                            finish()
+                            return@setOnKeyListener true
+                        }
+                    }
+                }
+                false
+            }
+            
+            // 显示对话框并设置初始焦点
+            dialog.show()
+            cancelButton.requestFocus()
+        }
     }
 
     private fun returnToFileList() {

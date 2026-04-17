@@ -1073,6 +1073,7 @@ class SmbVideoPlayerActivity : ComponentActivity() {
         instance = null
 
         handler.removeCallbacks(updateTimeRunnable)
+        handler.removeCallbacks(retryRunnable)
 
         isfinish = true;
     }

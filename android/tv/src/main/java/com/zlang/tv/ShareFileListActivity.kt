@@ -272,7 +272,7 @@ class ShareFileListActivity : ComponentActivity() {
                             
                             // 首先添加上级目录（除了在根目录时）
                             if (currentPath != "") {
-                                fileItems.add(FileItem("...", "上级目录", "directory"))
+                                fileItems.add(FileItem("...", "上级目录", "directory", 0))
                             }
 
                             val size = list?.size?:0
@@ -283,8 +283,8 @@ class ShareFileListActivity : ComponentActivity() {
                                 val path = fileObj?.path
                                 val type = if(fileObj?.isDirectory?:false)
                                     "directory" else "file"
-                                
-                                fileItems.add(FileItem(name?:"", type, path?:""))
+                                val file_size = fileObj?.contentLengthLong
+                                fileItems.add(FileItem(name?:"", type, path?:"", file_size?:0))
                             }
                             
                             // 更新适配器

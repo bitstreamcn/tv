@@ -19,6 +19,7 @@ class FileListAdapter(
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val iconView: ImageView = view.findViewById(R.id.iconView)
         val nameView: TextView = view.findViewById(R.id.nameView)
+        val sizeView: TextView = view.findViewById(R.id.sizeView)
     }
     
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -34,7 +35,23 @@ class FileListAdapter(
             if (item.type == "directory") R.drawable.ic_folder
             else R.drawable.ic_file
         )
-        
+        if (item.size > 1024 * 1024 * 1024)
+        {
+            holder.sizeView.text = (item.size / (1024 * 1024 * 1024)).toString() + "G"
+        }
+        else if (item.size > 1024 * 1024)
+        {
+            holder.sizeView.text = (item.size / (1024 * 1024)).toString() + "M"
+        }
+        else if (item.size > 1024)
+        {
+            holder.sizeView.text = (item.size / 1024).toString() + "K"
+        }
+        else if (item.size > 0)
+        {
+            holder.sizeView.text = (item.size).toString() + "B"
+        }
+
         holder.itemView.apply {
             setOnFocusChangeListener { v, hasFocus ->
                 if (hasFocus) {

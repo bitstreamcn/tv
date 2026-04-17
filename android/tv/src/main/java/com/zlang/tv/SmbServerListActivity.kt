@@ -115,8 +115,8 @@ class SmbServerListActivity : ComponentActivity() {
                                     val name = fileObj.getString("name")
                                     val path = fileObj.getString("ip")
                                     val type = "directory"
-
-                                    fileItems.add(FileItem(name, type, path))
+                                    val size = fileObj.getLong("size")
+                                    fileItems.add(FileItem(name, type, path, size))
                                 }
 
                                 // 更新适配器

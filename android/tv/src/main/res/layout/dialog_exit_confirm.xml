@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="320dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/exit_dialog_background"
+    android:padding="0dp"
+    android:elevation="12dp">
+
+    <!-- 标题栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/exit_dialog_header_bg"
+        android:padding="20dp"
+        android:gravity="center_vertical">
+        
+        <!-- 图标 -->
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_exit_warning"
+            android:tint="@color/exit_warning"
+            android:layout_marginEnd="12dp"/>
+            
+        <!-- 标题 -->
+        <TextView
+            android:id="@+id/titleTextView"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="退出确认"
+            android:textColor="@color/exit_text"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.02"/>
+    </LinearLayout>
+
+    <!-- 内容区域 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+        
+        <!-- 消息内容 -->
+        <TextView
+            android:id="@+id/messageTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="确定要退出图片浏览吗？"
+            android:textColor="@color/exit_text"
+            android:textSize="16sp"
+            android:lineSpacingExtra="4dp"
+            android:layout_marginBottom="24dp"/>
+            
+        <!-- 按钮区域 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:paddingTop="8dp">
+            
+            <!-- 取消按钮 -->
+            <TextView
+                android:id="@+id/cancelButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:background="@drawable/exit_dialog_button_cancel"
+                android:text="取消"
+                android:textColor="@color/exit_button_cancel_text"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp"
+                android:layout_marginEnd="12dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"/>
+                
+            <!-- 确定按钮 -->
+            <TextView
+                android:id="@+id/confirmButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:background="@drawable/exit_dialog_button_confirm"
+                android:text="确定"
+                android:textColor="@color/exit_button_confirm_text"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"/>
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>

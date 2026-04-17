@@ -8,7 +8,78 @@
 #include "session.h"
 #include <io.h>
 #include <fcntl.h>
+#include <ctime>
+#include <filesystem>
+#include <fstream>
 
+namespace fs = std::filesystem;
+
+int Media::GetSubIndex(std::string inut_file, SUB_Type type)
+{
+    int idx = -1;
+    // 打开输入文件
+    AVFormatContext* fmt_ctx = nullptr;
+    if (avformat_open_input(&fmt_ctx, inut_file.c_str(), nullptr, nullptr) < 0) {
+        std::cerr << "无法打开文件: " << inut_file << std::endl;
+        return -1;
+    }
+
+    // 获取流信息
+    if (avformat_find_stream_info(fmt_ctx, nullptr) < 0) {
+        std::cerr << "无法获取流信息" << std::endl;
+        avformat_close_input(&fmt_ctx);
+        return -1;
+    }
+
+    int idx_sub = -1;
+ 
+    // 遍历所有流 
+    for (unsigned int i = 0; i < fmt_ctx->nb_streams; i++) {
+        AVStream* stream = fmt_ctx->streams[i];
+        AVCodecParameters* codec_params = stream->codecpar;
+
+        // 只处理字幕流
+        if (codec_params->codec_type == AVMEDIA_TYPE_SUBTITLE) {
+            idx_sub++;
+            bool issrt = false;
+            AVCodecID codeid = codec_params->codec_id;
+            if (codeid == AV_CODEC_ID_SUBRIP || codeid == AV_CODEC_ID_ASS || codeid == AV_CODEC_ID_SSA)
+            {
+                issrt = true;
+            }
+            bool ists = false;
+            if (codeid == AV_CODEC_ID_DVB_SUBTITLE || codeid == AV_CODEC_ID_DVB_TELETEXT)
+            {
+                ists = true;
+            }
+            if (type == SUB_TEXT && idx == -1 && issrt)
+            {
+                idx = idx_sub;
+            }
+            if (type == SUB_TS && idx == -1 && ists)
+            {
+                idx = idx_sub;
+            }
+            // 获取语言信息 (从metadata)
+            AVDictionaryEntry* lang_tag = av_dict_get(stream->metadata, "language", nullptr, 0);
+            if (lang_tag != nullptr && _stricmp(lang_tag->value, "chi") == 0)
+            {
+                if (type == SUB_TEXT && issrt)
+                {
+                    idx = idx_sub;
+                    break;
+                }
+                if (type == SUB_TS && ists)
+                {
+                    idx = idx_sub;
+                    break;
+                }
+            }            
+        }
+    }
+    avformat_close_input(&fmt_ctx);
+    return idx;
+}
 
 Media::Media(std::string inut_file, Session& s, bool ffmpeg)
     :session(s)
@@ -1518,185 +1589,298 @@ cleanup:
     pi.hProcess = pi.hThread = nullptr;
 }
 
+void replace_all(std::string& str, const std::string& old_sub, const std::string& new_sub) {
+    size_t pos = 0;
+    while ((pos = str.find(old_sub, pos)) != std::string::npos) {
+        str.replace(pos, old_sub.length(), new_sub);
+        pos += new_sub.length();
+    }
+}
+
+std::string vfencode(std::string in)
+{
+    std::string enc = in;
+    replace_all(enc, "\\", "\\\\");
+    //单引号
+    replace_all(enc, "'", "\\'");
+    //%
+    replace_all(enc, "%", "%%");
+    //,
+    replace_all(enc, ",", "\\,");
+    //:
+    replace_all(enc, ":", "\\:");
+    replace_all(enc, "[", "\\[");
+    replace_all(enc, "]", "\\]");
+    
+    return enc;
+}
 
 bool Media::MainPipeCallback()
 {
+    static bool ffmpeg_error = false;
     std::string pathgb2312 = UTF8ToGB2312(path_file);
+    int try_count = 0;
+    fs::path filePath = std::filesystem::u8path(path_file);
 
-    std::string fps_format = "";
-    if (fps > 30)
+    static std::string last_path;
+
+    if (last_path == pathgb2312)
     {
-        //fps_format = "-vf \"fps=30\"";
+
     }
-    // 构建 ffmpeg 命令
-    std::string ffmpegCommand = "";
-    //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame  -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -c:v libx264 -preset faster -tune fastdecode -maxrate 3M -b:v 3M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-    //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-    //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + "  -vf \"hwdownload,format=nv12\" -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-    ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -map 0:v:0 -map 0:a:0 -vf \"hwdownload,format=nv12\" -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-    //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-    //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a copy -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-    //解决yuv420p10le问题(H265 hevc_nvenc)
-    if (pixel_format == AV_PIX_FMT_YUV420P10LE) 
+    else
     {
-        ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -map 0:v:0 -map 0:a:0 " + fps_format + " -c:v hevc_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+        ffmpeg_error = false;
+        last_path = pathgb2312;
     }
-    std::cout << ffmpegCommand << std::endl;
+    
+    do
+    {
+        try_count++;
+        std::string fps_format = "";
+        if (fps > 30)
+        {
+            //fps_format = "-vf \"fps=30\"";
+        }
+        std::string subtitles = "";
+        // 1. 提取父目录和文件名主干 
+        fs::path parentDir = filePath.parent_path();
+        std::string stem = filePath.stem().string();   // 不含扩展名
 
-    SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), NULL, TRUE };
-    HANDLE hReadPipe, hWritePipe;
+        // 2. 构建新路径
+        fs::path srtfile = parentDir / (stem + ".srt");
+        if (fs::exists(srtfile))
+        {
+            subtitles = ",subtitles='" + vfencode(UTF8ToGB2312(srtfile.u8string())) + "'";
+        }
+        else
+        {
+            fs::path assfile = parentDir / (stem + ".ass");
+            if (fs::exists(assfile))
+            {
+                subtitles = ",subtitles='" + vfencode(UTF8ToGB2312(assfile.u8string())) + "'";
+            }
+        }
 
-    // 创建数据管道
-    if (!CreatePipe(&hReadPipe, &hWritePipe, &sa, 0)) {
-        std::cerr << "CreatePipe failed (" << GetLastError() << ")\n";
-        return 1;
-    }
+        int subidx = GetSubIndex(path_file, SUB_TS);
+        std::string sub = "0:s:m:language:chi?";
+        if (subidx > -1)
+        {
+            sub = "0:s:" + std::to_string(subidx);
+        }
 
-    // 创建NUL设备句柄用于重定向stderr
-    HANDLE hNull = CreateFile(
-        "NUL",
-        GENERIC_WRITE,
-        FILE_SHARE_WRITE,
-        &sa,
-        OPEN_EXISTING,
-        0,
-        NULL
-    );
-    if (hNull == INVALID_HANDLE_VALUE) {
-        std::cerr << "CreateFile(NUL) failed (" << GetLastError() << ")\n";
-        CloseHandle(hReadPipe);
-        CloseHandle(hWritePipe);
-        return 1;
-    }
+        // 构建 ffmpeg 命令
+        std::string ffmpegCommand = "";
+        std::string fps_trans = "";
+        if (fps > 30)
+        {
+            fps_trans = " -r 30 ";
+        }
+        std::string ext = filePath.extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) {
+            return std::tolower(c);
+            });
 
-    // 配置进程启动参数
-    STARTUPINFO si = { sizeof(STARTUPINFO) };
-    si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdOutput = hWritePipe;    // 媒体数据输出到管道
-    si.hStdError = hNull;          // 日志输出到NUL设备
-    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+        if (ffmpeg_error || ext == ".webm" || ext == ".flv")
+        {
+            if (subtitles == "")
+            {
+                subtitles = "null";
+            }
+            else if (subtitles[0] == ',')
+            {
+                subtitles = subtitles.substr(1);
+            }
+            //软解
+            ffmpegCommand = "ffmpeg -loglevel quiet -threads 24 -thread_type frame  -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -filter_complex \"[0:v]" + subtitles + "[v]\" -map \"[v]\" -map 0:a:0 -map " + sub + " -c:s copy -c:v libx264 -preset faster -tune fastdecode -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k " + fps_trans + " -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+            //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+            //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + "  -vf \"hwdownload,format=nv12\" -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+        }
+        else
+        {
+            //硬解
+            ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -hwaccel_output_format cuda -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -filter_complex \"[0:v]hwdownload,format=nv12,setpts=PTS-STARTPTS" + subtitles + "[v]\" -map \"[v]\" -map 0:a:0 -map " + sub + " -c:s copy -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k " + fps_trans + " -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+            //ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -hwaccel_output_format cuda -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -map 0:v:0 -map 0:a:0 -vf \"hwdownload,format=nv12,subtitles='" + vfencode(pathgb2312) +  "'\" -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+            //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+            //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a copy -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+            //解决yuv420p10le问题(H265 hevc_nvenc)
+            if (pixel_format == AV_PIX_FMT_YUV420P10LE)
+            {
+                ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -filter_complex \"[0:v]hwdownload,format=p010le,setpts=PTS-STARTPTS" + subtitles + "[v]\" -map \"[v]\" -map 0:a:0 " + fps_format + " -map " + sub + " -c:s copy -c:v hevc_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k " + fps_trans + " -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+            }
+        }
+        std::cout << ffmpegCommand << std::endl;
 
-    PROCESS_INFORMATION pi;
+        SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), NULL, TRUE };
+        HANDLE hReadPipe, hWritePipe;
 
-    // 创建FFmpeg进程
-    if (!CreateProcess(
-        NULL,
-        const_cast<LPSTR>(ffmpegCommand.c_str()),
-        NULL,
-        NULL,
-        TRUE,    // 继承句柄
-        CREATE_NO_WINDOW,  // 不显示控制台窗口
-        NULL,
-        NULL,
-        &si,
-        &pi
-    )) {
-        std::cerr << "CreateProcess failed (" << GetLastError() << ")\n";
-        CloseHandle(hReadPipe);
+        // 创建数据管道
+        if (!CreatePipe(&hReadPipe, &hWritePipe, &sa, 0)) {
+            std::cerr << "CreatePipe failed (" << GetLastError() << ")\n";
+            return 1;
+        }
+
+        // 创建NUL设备句柄用于重定向stderr
+        HANDLE hNull = CreateFile(
+            "NUL",
+            GENERIC_WRITE,
+            FILE_SHARE_WRITE,
+            &sa,
+            OPEN_EXISTING,
+            0,
+            NULL
+        );
+        if (hNull == INVALID_HANDLE_VALUE) {
+            std::cerr << "CreateFile(NUL) failed (" << GetLastError() << ")\n";
+            CloseHandle(hReadPipe);
+            CloseHandle(hWritePipe);
+            return 1;
+        }
+
+        // 配置进程启动参数
+        STARTUPINFO si = { sizeof(STARTUPINFO) };
+        si.dwFlags = STARTF_USESTDHANDLES;
+        si.hStdOutput = hWritePipe;    // 媒体数据输出到管道
+        si.hStdError = hNull;          // 日志输出到NUL设备
+        si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+
+        PROCESS_INFORMATION pi;
+
+        // 创建FFmpeg进程
+        if (!CreateProcess(
+            NULL,
+            const_cast<LPSTR>(ffmpegCommand.c_str()),
+            NULL,
+            NULL,
+            TRUE,    // 继承句柄
+            CREATE_NO_WINDOW,  // 不显示控制台窗口
+            NULL,
+            NULL,
+            &si,
+            &pi
+        )) {
+            std::cerr << "CreateProcess failed (" << GetLastError() << ")\n";
+            CloseHandle(hReadPipe);
+            CloseHandle(hWritePipe);
+            CloseHandle(hNull);
+            return 1;
+        }
+
+        // 关闭不再使用的句柄
         CloseHandle(hWritePipe);
         CloseHandle(hNull);
-        return 1;
-    }
-
-    // 关闭不再使用的句柄
-    CloseHandle(hWritePipe);
-    CloseHandle(hNull);
-    CloseHandle(pi.hThread);
+        CloseHandle(pi.hThread);
 
 
-    BYTE buffer[4096];
-    DWORD bytesRead;
-    std::vector<BYTE> tempBuffer;  // 临时缓冲
-    stop_flag = false;
-    while (!stop_flag) {
-        bool pause = false;
-        //检查队列，如果队列数据太多，暂停解码
-        {
-            std::lock_guard<std::mutex> lock(session.data_queues.mutex);
-            if (session.data_queues.ts_packets.size() >= MAX_QUEUE_SIZE)
+        BYTE buffer[4096];
+        DWORD bytesRead;
+        std::vector<BYTE> tempBuffer;  // 临时缓冲
+        stop_flag = false;
+        time_t start_time = time(nullptr);
+        while (!stop_flag) {
+            bool pause = false;
+            //检查队列，如果队列数据太多，暂停解码
             {
-                session.data_queues.cv.notify_all();
-                pause = true;
+                std::lock_guard<std::mutex> lock(session.data_queues.mutex);
+                if (session.data_queues.ts_packets.size() >= MAX_QUEUE_SIZE)
+                {
+                    session.data_queues.cv.notify_all();
+                    pause = true;
+                }
+            }
+            if (pause)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(1)));
+                continue;
+            }
+            if (!ReadFile(hReadPipe, buffer, sizeof(buffer), &bytesRead, NULL))
+            {
+                DWORD errorCode = GetLastError();
+                std::cerr << "ReadFile failed with error code: " << errorCode << std::endl;
+                switch (errorCode) {
+                case ERROR_BROKEN_PIPE:
+                    //ffmpeg命令出错
+                    if ((time(nullptr) - start_time) < 10)
+                    {
+                        ffmpeg_error = true;
+                    }
+                    break;
+                case ERROR_INVALID_HANDLE:
+                    std::cerr << "Invalid handle." << std::endl;
+                    break;
+                case ERROR_HANDLE_EOF:
+                    std::cerr << "End of file or pipe reached." << std::endl;
+                    break;
+                case ERROR_NOT_ENOUGH_MEMORY:
+                    std::cerr << "Not enough memory." << std::endl;
+                    break;
+                default:
+                    std::cerr << "Unknown error." << std::endl;
+                    break;
+                }
+                break;
+            }
+            if (bytesRead > 0) {
+                // 将新数据追加到临时缓冲
+                tempBuffer.insert(tempBuffer.end(), buffer, buffer + bytesRead);
+                // 分割完整TS包
+                size_t packetCount = tempBuffer.size() / TS_PACKET_SIZE;
+                for (size_t i = 0; i < packetCount; ++i) {
+                    auto start = tempBuffer.begin() + i * TS_PACKET_SIZE;
+                    auto end = start + TS_PACKET_SIZE;
+                    {
+                        // 写入队列操作
+                        std::unique_lock<std::mutex> lock(session.data_queues.mutex);
+                        session.data_queues.ts_packets.push(std::move(std::vector<uint8_t>(start, end)));
+                        session.run_status.queue_count = session.data_queues.ts_packets.size();
+                    }
+                    session.data_queues.cv.notify_all();
+                }
+
+                // 保留不完整的数据
+                size_t remaining = tempBuffer.size() % TS_PACKET_SIZE;
+                tempBuffer.assign(
+                    tempBuffer.end() - remaining,
+                    tempBuffer.end()
+                );
+                session.run_status.dec_packages_count++;
+                session.run_status.dec_packages_size += bytesRead;
             }
         }
-        if (pause)
+        std::cout << "stop:" << stop_flag << std::endl;
+
+        // 进程结束后处理剩余数据
+        if (!tempBuffer.empty()) {
+            std::cerr << "WARNING: Incomplete TS packet (" << tempBuffer.size() << " bytes)\n";
+        }
+        CloseHandle(hReadPipe);
+
+        if (ffmpeg_error && false)
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(1)));
+            std::cout << "try again" << std::endl;
             continue;
         }
-        if (!ReadFile(hReadPipe, buffer, sizeof(buffer), &bytesRead, NULL))
+        else
         {
-            DWORD errorCode = GetLastError();
-            std::cerr << "ReadFile failed with error code: " << errorCode << std::endl;
-            switch (errorCode) {
-            case ERROR_INVALID_HANDLE:
-                std::cerr << "Invalid handle." << std::endl;
-                break;
-            case ERROR_HANDLE_EOF:
-                std::cerr << "End of file or pipe reached." << std::endl;
-                break;
-            case ERROR_NOT_ENOUGH_MEMORY:
-                std::cerr << "Not enough memory." << std::endl;
-                break;
-            default:
-                std::cerr << "Unknown error." << std::endl;
-                break;
+            std::cout << "taskkill " << pi.dwProcessId << std::endl;
+            // 强行终止进程
+            /*
+            if (!TerminateProcess(pi.hProcess, 0)) {
+                std::cerr << "TerminateProcess failed: " << GetLastError() << std::endl;
             }
-            break;
-        }
-        if (bytesRead > 0) {
-            // 将新数据追加到临时缓冲
-            tempBuffer.insert(tempBuffer.end(), buffer, buffer + bytesRead);
-            // 分割完整TS包
-            size_t packetCount = tempBuffer.size() / TS_PACKET_SIZE;
-            for (size_t i = 0; i < packetCount; ++i) {
-                auto start = tempBuffer.begin() + i * TS_PACKET_SIZE;
-                auto end = start + TS_PACKET_SIZE;
-                {
-                    // 写入队列操作
-                    std::unique_lock<std::mutex> lock(session.data_queues.mutex);
-                    session.data_queues.ts_packets.push(std::move(std::vector<uint8_t>(start, end)));
-                    session.run_status.queue_count = session.data_queues.ts_packets.size();
-                }
-                session.data_queues.cv.notify_all();
+            else {
+                std::cout << "Process terminated successfully." << std::endl;
             }
+            */
+            //TerminateProcessTree(pi);
+            //system(("start taskkill /PID " + std::to_string(pi.dwProcessId) + " /T /F").c_str());
+            ShellExecute(NULL, "open", "taskkill.exe", ("/PID " + std::to_string(pi.dwProcessId) + " /T /F").c_str(), NULL, SW_HIDE);
+            //WaitForSingleObject(pi.hProcess, INFINITE);
+            //CloseHandle(pi.hProcess);
 
-            // 保留不完整的数据
-            size_t remaining = tempBuffer.size() % TS_PACKET_SIZE;
-            tempBuffer.assign(
-                tempBuffer.end() - remaining,
-                tempBuffer.end()
-            );
-            session.run_status.dec_packages_count++;
-            session.run_status.dec_packages_size += bytesRead;
         }
-    }
-
-    DWORD err = GetLastError();
-    if (err != ERROR_BROKEN_PIPE) {
-        std::cerr << "ReadFile error: " << err << "\n";
-    }
-
-    // 进程结束后处理剩余数据
-    if (!tempBuffer.empty()) {
-        std::cerr << "WARNING: Incomplete TS packet (" << tempBuffer.size() << " bytes)\n";
-    }
-  
-    // 强行终止进程
-    /*
-    if (!TerminateProcess(pi.hProcess, 0)) {
-        std::cerr << "TerminateProcess failed: " << GetLastError() << std::endl;
-    }
-    else {
-        std::cout << "Process terminated successfully." << std::endl;
-    }
-    */
-    //TerminateProcessTree(pi);
-    //system(("start taskkill /PID " + std::to_string(pi.dwProcessId) + " /T /F").c_str());
-    ShellExecute(NULL, "open", "taskkill.exe", ("/PID " + std::to_string(pi.dwProcessId) + " /T /F").c_str(), NULL, SW_HIDE);
-    //WaitForSingleObject(pi.hProcess, INFINITE);
-    //CloseHandle(pi.hProcess);
-    CloseHandle(hReadPipe);
+        break;
+    }while (try_count < 2);
     return true;
 }
 

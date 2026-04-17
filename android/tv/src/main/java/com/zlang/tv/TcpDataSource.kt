@@ -121,9 +121,10 @@ class TcpDataSource(serverIp: String, ffmpeg: Boolean) : BaseDataSource(/* isNet
 
     class Factory(serverIp : String, ffmpeg: Boolean) : DataSource.Factory {
         val serverIp = serverIp
-        val ffmpeg = ffmpeg
+        //val ffmpeg = ffmpeg
+        val datasource = TcpDataSource(serverIp, ffmpeg)
         override fun createDataSource(): DataSource {
-             return TcpDataSource(serverIp, ffmpeg)
+             return datasource
         }
     }
 

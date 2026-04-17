@@ -113,6 +113,13 @@ public:
     double Duration();
     double Fps() { return fps; }
 
+    enum SUB_Type {
+        SUB_TEXT, 
+        SUB_TS
+    };
+
+    static int GetSubIndex(std::string inut_file, SUB_Type type = SUB_TEXT);
+
 private:
 
     static int write_packet(void* opaque, uint8_t* buf, int buf_size);

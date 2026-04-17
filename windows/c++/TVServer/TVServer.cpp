@@ -6,6 +6,7 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <tlhelp32.h>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 #include <cwchar>
@@ -95,7 +96,15 @@ void data_thread(SOCKET data_sock) {
         closesocket(data_sock);
         return;
     }
-    session->AttachDataSocket(data_sock);
+    try{
+        session->AttachDataSocket(data_sock);
+    }
+    catch (const std::exception& e) { // 捕获标准异常基类
+        std::cerr << "Standard exception: " << e.what() << std::endl;
+    }
+    catch (...) { // 捕获所有未处理的异常
+        std::cerr << "Unknown exception" << std::endl;
+    }
 }
 
 
@@ -104,9 +113,17 @@ void control_listen_thread(SOCKET ctrl_listen) {
     // 等待连接
     while ((ctrl_sock = accept(ctrl_listen, NULL, NULL)) > 0 && !exit_program)
     {
-        // 启动线程
-        std::thread ctrl_handler(control_thread, ctrl_sock);
-        ctrl_handler.detach();
+        try {
+            // 启动线程
+            std::thread ctrl_handler(control_thread, ctrl_sock);
+            ctrl_handler.detach();
+        }
+        catch (const std::exception& e) { // 捕获标准异常基类
+            std::cerr << "Standard exception: " << e.what() << std::endl;
+        }
+        catch (...) { // 捕获所有未处理的异常
+            std::cerr << "Unknown exception" << std::endl;
+        }
     }
 }
 
@@ -115,9 +132,17 @@ void data_listen_thread(SOCKET data_listen) {
     // 等待连接
     while ((data_sock = accept(data_listen, NULL, NULL)) > 0 && !exit_program)
     {
-        // 启动线程
-        std::thread data_handler(data_thread, data_sock);
-        data_handler.detach();
+        try {
+            // 启动线程
+            std::thread data_handler(data_thread, data_sock);
+            data_handler.detach();
+        }
+        catch (const std::exception& e) { // 捕获标准异常基类
+            std::cerr << "Standard exception: " << e.what() << std::endl;
+        }
+        catch (...) { // 捕获所有未处理的异常
+            std::cerr << "Unknown exception" << std::endl;
+        }
     }
 }
 
@@ -285,6 +310,17 @@ void KillProcessByName(const std::string& processName) {
     */
 }
 
+int __cdecl abort_handler() {
+    //MessageBox(NULL, "程序异常终止", "错误", MB_ICONSTOP);
+    ExitProcess(1); // 静默退出
+    return 1;
+}
+
+void on_abort() {
+    std::ofstream log("crash.log");
+    log << "abort() called at " << __TIME__;
+}
+
 int main() {
     std::locale commaLocale(std::locale(), new std::numpunct<char>());
     std::cout.imbue(commaLocale);
@@ -388,6 +424,11 @@ int main() {
     std::thread session_thread(session_manage_thread);
     std::thread ping_thread(ping_thread);
 
+
+    _set_abort_behavior(0, _WRITE_ABORT_MSG); // 禁用弹窗
+    //signal(SIGABRT, abort_handler);            // 接管信号
+    std::set_terminate(on_abort);
+
     control_listen_thread.join();
     data_listen_thread.join();
     session_thread.join();
@@ -411,9 +452,7 @@ int main() {
         }
     }
 
-    
-
-    KillProcessByName("ffmpeg.exe");
+    //KillProcessByName("ffmpeg.exe");
 
     WSACleanup();
 

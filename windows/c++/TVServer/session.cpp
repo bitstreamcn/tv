@@ -276,13 +276,21 @@ void Session::AttachCtrlSocket(SOCKET sock)
 		closesocket(ctrl_sock);
         ctrl_sock = -1;
 	}
-    if (ctrl_thread.joinable())
-    {
-        ctrl_thread.join();
+    try {
+        if (ctrl_thread.joinable())
+        {
+            ctrl_thread.join();
+        }
+        ctrl_sock = sock;
+        //启动接收线程
+        ctrl_thread = std::thread(Session::control_thread, this);
     }
-	ctrl_sock = sock; 
-	//启动接收线程
-	ctrl_thread = std::thread(Session::control_thread, this);
+    catch (const std::exception& e) { // 捕获标准异常基类
+        std::cerr << "Standard exception: " << e.what() << std::endl;
+    }
+    catch (...) { // 捕获所有未处理的异常
+        std::cerr << "Unknown exception" << std::endl;
+    }
 }
 void Session::AttachDataSocket(SOCKET sock)
 { 
@@ -299,18 +307,36 @@ void Session::AttachDataSocket(SOCKET sock)
         data_queues.ts_packets.push(std::move(std::vector<uint8_t>()));
     }
     data_queues.cv.notify_all();
-    if (data_thread.joinable())
+    try
     {
-        data_thread.join();
+        if (data_thread.joinable())
+        {
+            data_thread.join();
+        }
+        
+        data_sock = sock;
+        //启动接收线程
+        data_thread = std::thread(Session::datasend_thread, this);
     }
-	data_sock = sock; 
-	//启动接收线程
-    data_thread = std::thread(Session::datasend_thread, this);
+    catch (const std::exception& e) { // 捕获标准异常基类
+        std::cerr << "Standard exception: " << e.what() << std::endl;
+    }
+    catch (...) { // 捕获所有未处理的异常
+        std::cerr << "Unknown exception" << std::endl;
+    }
 }
 
 void Session::control_thread(Session* This)
 {
-	This->control_fun();
+    __try {
+	    This->control_fun();
+    }
+    __except (GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION
+        ? EXCEPTION_EXECUTE_HANDLER
+        : EXCEPTION_CONTINUE_SEARCH) {
+        // 仅处理访问冲突异常 
+        printf("捕获访问冲突异常！错误代码: 0x%X\n", GetExceptionCode());
+    }
 }
 
 bool isTsFile(const std::string& path) {
@@ -515,7 +541,7 @@ void Session::control_fun()
                 if (ists)
                 {
                     response["status"] = "fail";
-                    response["message"] = "无需要转码";
+                    response["message"] = "exists";
                 }
                 else
                 {
@@ -550,6 +576,40 @@ void Session::control_fun()
 
                     response["status"] = "success";
                 }
+            }
+            else if (cmd["action"] == "bdmv_enc") {
+                std::string path = cmd["path"]; //返回的是UTF-8格式
+
+                std::string pathgb2312 = UTF8ToGB2312(path);
+                // 获取文件所在目录和文件名（不包含扩展名）
+                std::filesystem::path fsPath(pathgb2312);
+                std::string directory = fsPath.parent_path().parent_path().parent_path().string();
+                std::string filenameWithoutExt = fsPath.stem().string();
+                std::string outputPath = directory + "\\" + filenameWithoutExt + ".mkv";
+
+                // 构建 ffmpeg 命令
+                std::string ffmpegCommand = "ffmpeg -y -i \"" + pathgb2312 + "\" -map 0 \"" + outputPath + "\"";
+
+                std::cout << ffmpegCommand << std::endl;
+
+                STARTUPINFO si = { sizeof(si) };
+                PROCESS_INFORMATION pi;
+                // 创建新进程执行 FFmpeg 命令
+                if (CreateProcess(NULL, const_cast<char*>(ffmpegCommand.c_str()), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+                    std::cout << "FFmpeg process started." << std::endl;
+
+                    // 等待进程结束
+                    //WaitForSingleObject(pi.hProcess, INFINITE);
+
+                    // 关闭进程和线程句柄
+                    CloseHandle(pi.hProcess);
+                    CloseHandle(pi.hThread);
+                }
+                else {
+                    std::cerr << "Failed to start FFmpeg process. Error code: " << GetLastError() << std::endl;
+                }
+
+                response["status"] = "success";
             }
             else if (cmd["action"] == "smblist") {
             /*
@@ -586,6 +646,62 @@ void Session::control_fun()
                     continue;
                 }
             }
+            else if (cmd["action"] == "makesrt") {
+                std::string path = cmd["path"]; //返回的是UTF-8格式
+                fs::path filePath = std::filesystem::u8path(path);
+                // 1. 提取父目录和文件名主干 
+                fs::path parentDir = filePath.parent_path();
+                std::string stem = filePath.stem().string();   // 不含扩展名
+
+                // 2. 构建新路径
+                fs::path srtfile = parentDir / (stem + ".srt");
+                if (!fs::exists(srtfile))
+                {
+                    std::string pathgb2312 = UTF8ToGB2312(filePath.u8string());
+                    std::string outputPath = UTF8ToGB2312(srtfile.u8string());
+
+                    // 构建 ffmpeg 命令
+                    std::string ffmpegCommand = "cmd /v:on /c \"(for /f \"tokens=1 delims=:\" %i in ('ffprobe -v error -select_streams s -show_entries stream^=index:stream_tags^=language -of csv^=p^=0 \"" + pathgb2312
+                        + "\"  ^| findstr /i /n \"chi zho zh\"') do (set /a \"na=%i-1\" >nul & ffmpeg -i \"" + pathgb2312
+                        + "\"  -map \"0:s:!na!\" -c:s srt -y \"" + outputPath + "\"  & exit /b)) || (for /f \"tokens=1 delims=:\" %i in ('ffprobe -v error -select_streams s -show_entries stream^=index:stream_tags^=language -of csv^=p^=0 \"" + pathgb2312
+                        + "\"  ^| findstr /i /n \"en eng\"') do (set /a \"nc=%i-1\" >nul & ffmpeg -i \"" + pathgb2312
+                        + "\"  -map \"0:s:!nc!\" -c:s srt -y \"" + outputPath + "\"  & exit /b)) || ffmpeg -y -i \"" + pathgb2312
+                        + "\"  -map 0:s:0 -c:s srt \"" + outputPath + "\"\"";
+
+                    int idx = Media::GetSubIndex(path);
+                    if (idx > -1)
+                    {
+                        ffmpegCommand = "ffmpeg -i \"" + pathgb2312
+                            + "\"  -map 0:s:" + std::to_string(idx) + " -c:s srt -y \"" + outputPath + "\"";
+                    }
+
+                    std::cout << ffmpegCommand << std::endl;
+
+                    STARTUPINFO si = { sizeof(si) };
+                    PROCESS_INFORMATION pi;
+                    // 创建新进程执行 FFmpeg 命令
+                    if (CreateProcess(NULL, const_cast<char*>(ffmpegCommand.c_str()), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+                        std::cout << "FFmpeg process started." << std::endl;
+
+                        // 等待进程结束
+                        //WaitForSingleObject(pi.hProcess, INFINITE);
+
+                        // 关闭进程和线程句柄
+                        CloseHandle(pi.hProcess);
+                        CloseHandle(pi.hThread);
+                    }
+                    else {
+                        std::cerr << "Failed to start FFmpeg process. Error code: " << GetLastError() << std::endl;
+                    }
+
+                    response["status"] = "success";
+                }
+                else
+                {
+                    response["status"] = "fail";
+                    response["message"] = "srt exists";
+                }
+            }
             // 发送响应
             send_tlv_packet(ctrl_sock, response);
         }
@@ -594,12 +710,24 @@ void Session::control_fun()
             log(e.what());
             break;
         }
+        catch (...) { // 捕获所有未处理的异常
+            std::cerr << "Unknown exception" << std::endl;
+            break;
+        }
     }
 }
 
 void Session::datasend_thread(Session* This)
 {
-    This->datasend_fun();
+    __try{
+         This->datasend_fun();
+    }
+    __except (GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION
+        ? EXCEPTION_EXECUTE_HANDLER
+        : EXCEPTION_CONTINUE_SEARCH) {
+        // 仅处理访问冲突异常 
+        printf("捕获访问冲突异常！错误代码: 0x%X\n", GetExceptionCode());
+    }
 }
 void Session::datasend_fun()
 {
@@ -610,164 +738,65 @@ void Session::datasend_fun()
     uint32_t show_status_seconds = 0;
     int times = 0;
     while (true) {
+        try
         {
-            std::unique_lock<std::mutex> lk(pause_mutex);
-            cv.wait(lk, [this] { return !stream_paused; });
-        }
-        std::vector<uint8_t> currentData;
-        {
-            std::unique_lock<std::mutex> lock(data_queues.mutex);
-            data_queues.cv.wait(lock, [this] { return!data_queues.ts_packets.empty(); });
-            if (!data_queues.ts_packets.empty()) {
-                currentData = std::move(data_queues.ts_packets.front());
-                data_queues.ts_packets.pop();
-                run_status.sent_packages_count++;
-            }
-        }
-        if (-1 == data_sock)
-        {
-            break;
-        }
-        if (currentData.size() == 0)
-        {
-            continue;
-        }
-
-        auto now = std::chrono::system_clock::now();
-        auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
-
-        //每隔一段时间显示运行状态
-        if ((timestamp - show_status_seconds) > 5)
-        {
-            std::cout << "[" << sessionid << "]"
-                << "已读封包数：" << run_status.read_packet_count
-                << "，音频时间：" << run_status.audio_clock
-                << "，视频时间：" << run_status.video_clock
-                << "，视频封包队列：" << run_status.video_packet_count
-                << "，音频封包队列：" << run_status.audio_packet_count
-                << "，视频帧队列：" << run_status.video_frame_count
-                << "，音频帧队列：" << run_status.audio_frame_count
-                << "，已解码：" << run_status.dec_packages_count << "/" << run_status.sent_packages_size
-                << "，已发送：" << run_status.sent_packages_count << "/" << run_status.sent_packages_size
-                << "，队列：" << run_status.queue_count << std::endl;
-            show_status_seconds = (uint32_t)timestamp;
-        }
-
-        if (packageid > 0x7FFFFF00)
-        {
-            packageid = 1;
-        }
-
-        // 构造TLV
-        uint32_t t_net = htonl(MAGIC_T);
-
-        uint8_t* ts_data = currentData.data();
-        int ts_size = (int)currentData.size();
-        if ((reserve_size + ts_size) >= TS_PACKET_SIZE)
-        {
-            //先发送未发送部分
-            if (reserve_size > 0)
             {
-                // 发送头部
-                //send(data_sock, reinterpret_cast<char*>(&t_net), 4, 0); //重复发送，因为android DataOutputStream/DataInputStream会吃掉4个字节
-                send(data_sock, reinterpret_cast<char*>(&t_net), 4, 0);
-
-                //发送包ID
-                packageid++;
-                uint32_t pid_net = htonl(packageid);
-                int isent = send(data_sock, (char*)&pid_net, 4, 0);
-                if (isent < 0) {
-                    printf("连接已断开1\n");
-                    closesocket(data_sock);
-                    return;
+                std::unique_lock<std::mutex> lk(pause_mutex);
+                cv.wait(lk, [this] { return !stream_paused; });
+            }
+            std::vector<uint8_t> currentData;
+            {
+                std::unique_lock<std::mutex> lock(data_queues.mutex);
+                data_queues.cv.wait(lock, [this] { return!data_queues.ts_packets.empty(); });
+                if (!data_queues.ts_packets.empty()) {
+                    currentData = std::move(data_queues.ts_packets.front());
+                    data_queues.ts_packets.pop();
+                    run_status.sent_packages_count++;
                 }
-                if (isent != 4) {
-                    printf("发送包ID失败\n");
-                }
-                //发送数据长度
-                uint32_t pack_len = htonl(TS_PACKET_SIZE);
-                isent = send(data_sock, (char*)&pack_len, 4, 0);
-                if (isent < 0) {
-                    printf("连接已断开1\n");
-                    closesocket(data_sock);
-                    return;
-                }
-                if (isent != 4) {
-                    printf("发送包长度失败\n");
-                }
-                {
-                    uint8_t* pdata = package;
-                    int sent_count = 0;
-                    while (sent_count < reserve_size)
-                    {
-                        int isent = send(data_sock, (char*)pdata + sent_count, reserve_size - sent_count, 0);
-                        if (isent < 0) {
-                            printf("连接已断开2\n");
-                            closesocket(data_sock);
-                            return;
-                        }
-                        sent_count += isent;
-                    }
-                }
-                //发送包后部分
-                {
-                    int after_size = TS_PACKET_SIZE - reserve_size;
-                    uint8_t* pdata = ts_data;
-                    int sent_count = 0;
-                    while (sent_count < after_size)
-                    {
-                        int isent = send(data_sock, (char*)pdata + sent_count, after_size - sent_count, 0);
-                        if (isent < 0) {
-                            printf("连接已断开3\n");
-                            closesocket(data_sock);
-                            return;
-                        }
-                        sent_count += isent;
-                    }
-                    ts_data += after_size;
-                    ts_size -= after_size;
-                }
-                reserve_size = 0;
-                //printf("发送数据包成功:%d\n", packageid);
-                //等待响应
-                /*
-                uint32_t m_recv = 0;
-                do {
-                    int iread = recv(data_sock, (char*)&m_recv, 4, 0);
-                    if (iread == -1) {
-                        printf("连接已断开4\n");
-                        closesocket(data_sock);
-                        return;
-                    }
-                    if (iread != 4) {
-                        printf("接收包ID失败\n");
-                        break;
-                    }
-                } while (m_recv == t_net);
-                uint32_t pid_net_recv = m_recv;
-
-                uint32_t pid_recv = ntohl(pid_net_recv);
-                if (pid_recv != packageid)
-                {
-                    printf("包ID响应错误\n");
-                }
-                //返回状态码
-                uint8_t status_code = 0;
-                int iread = recv(data_sock, (char*)&status_code, 1, 0);
-                if (iread == -1) {
-                    printf("连接已断开5\n");
-                    closesocket(data_sock);
-                    return;
-                }
-                //printf("收到响应成功:%d\n", status_code);
-                */
+            }
+            if (-1 == data_sock)
+            {
+                break;
+            }
+            if (currentData.size() == 0)
+            {
+                continue;
             }
 
-            //发送一大块数据
+            auto now = std::chrono::system_clock::now();
+            auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+
+            //每隔一段时间显示运行状态
+            if ((timestamp - show_status_seconds) > 5)
             {
-                int div = (ts_size / TS_PACKET_SIZE);
-                int pack_size = div * TS_PACKET_SIZE;
-                if (pack_size > 0)
+                std::cout << "[" << sessionid << "]"
+                    << "已读封包数：" << run_status.read_packet_count
+                    << "，音频时间：" << run_status.audio_clock
+                    << "，视频时间：" << run_status.video_clock
+                    << "，视频封包队列：" << run_status.video_packet_count
+                    << "，音频封包队列：" << run_status.audio_packet_count
+                    << "，视频帧队列：" << run_status.video_frame_count
+                    << "，音频帧队列：" << run_status.audio_frame_count
+                    << "，已解码：" << run_status.dec_packages_count << "/" << run_status.sent_packages_size
+                    << "，已发送：" << run_status.sent_packages_count << "/" << run_status.sent_packages_size
+                    << "，队列：" << run_status.queue_count << std::endl;
+                show_status_seconds = (uint32_t)timestamp;
+            }
+
+            if (packageid > 0x7FFFFF00)
+            {
+                packageid = 1;
+            }
+
+            // 构造TLV
+            uint32_t t_net = htonl(MAGIC_T);
+
+            uint8_t* ts_data = currentData.data();
+            int ts_size = (int)currentData.size();
+            if ((reserve_size + ts_size) >= TS_PACKET_SIZE)
+            {
+                //先发送未发送部分
+                if (reserve_size > 0)
                 {
                     // 发送头部
                     //send(data_sock, reinterpret_cast<char*>(&t_net), 4, 0); //重复发送，因为android DataOutputStream/DataInputStream会吃掉4个字节
@@ -785,9 +814,8 @@ void Session::datasend_fun()
                     if (isent != 4) {
                         printf("发送包ID失败\n");
                     }
-                    //isent = send(data_sock, (char*)&pid_net, 4, 0); //重复发送，因为android DataOutputStream/DataInputStream会吃掉4个字节
                     //发送数据长度
-                    uint32_t pack_len = htonl(pack_size);
+                    uint32_t pack_len = htonl(TS_PACKET_SIZE);
                     isent = send(data_sock, (char*)&pack_len, 4, 0);
                     if (isent < 0) {
                         printf("连接已断开1\n");
@@ -797,19 +825,39 @@ void Session::datasend_fun()
                     if (isent != 4) {
                         printf("发送包长度失败\n");
                     }
-                    uint8_t* pdata = ts_data;
-                    int sent_count = 0;
-                    while (sent_count < pack_size)
                     {
-                        int isent = send(data_sock, (char*)pdata + sent_count, pack_size - sent_count, 0);
-                        if (isent < 0) {
-                            printf("连接已断开7\n");
-                            closesocket(data_sock);
-                            return;
+                        uint8_t* pdata = package;
+                        int sent_count = 0;
+                        while (sent_count < reserve_size)
+                        {
+                            int isent = send(data_sock, (char*)pdata + sent_count, reserve_size - sent_count, 0);
+                            if (isent < 0) {
+                                printf("连接已断开2\n");
+                                closesocket(data_sock);
+                                return;
+                            }
+                            sent_count += isent;
                         }
-                        sent_count += isent;
                     }
-                    run_status.sent_packages_size += sent_count;
+                    //发送包后部分
+                    {
+                        int after_size = TS_PACKET_SIZE - reserve_size;
+                        uint8_t* pdata = ts_data;
+                        int sent_count = 0;
+                        while (sent_count < after_size)
+                        {
+                            int isent = send(data_sock, (char*)pdata + sent_count, after_size - sent_count, 0);
+                            if (isent < 0) {
+                                printf("连接已断开3\n");
+                                closesocket(data_sock);
+                                return;
+                            }
+                            sent_count += isent;
+                        }
+                        ts_data += after_size;
+                        ts_size -= after_size;
+                    }
+                    reserve_size = 0;
                     //printf("发送数据包成功:%d\n", packageid);
                     //等待响应
                     /*
@@ -841,24 +889,116 @@ void Session::datasend_fun()
                         closesocket(data_sock);
                         return;
                     }
+                    //printf("收到响应成功:%d\n", status_code);
                     */
                 }
-                if (pack_size != ts_size)
+
+                //发送一大块数据
                 {
-                    reserve_size = ts_size - pack_size;
-                    memcpy(package, ts_data + pack_size, reserve_size);
+                    int div = (ts_size / TS_PACKET_SIZE);
+                    int pack_size = div * TS_PACKET_SIZE;
+                    if (pack_size > 0)
+                    {
+                        // 发送头部
+                        //send(data_sock, reinterpret_cast<char*>(&t_net), 4, 0); //重复发送，因为android DataOutputStream/DataInputStream会吃掉4个字节
+                        send(data_sock, reinterpret_cast<char*>(&t_net), 4, 0);
+
+                        //发送包ID
+                        packageid++;
+                        uint32_t pid_net = htonl(packageid);
+                        int isent = send(data_sock, (char*)&pid_net, 4, 0);
+                        if (isent < 0) {
+                            printf("连接已断开1\n");
+                            closesocket(data_sock);
+                            return;
+                        }
+                        if (isent != 4) {
+                            printf("发送包ID失败\n");
+                        }
+                        //isent = send(data_sock, (char*)&pid_net, 4, 0); //重复发送，因为android DataOutputStream/DataInputStream会吃掉4个字节
+                        //发送数据长度
+                        uint32_t pack_len = htonl(pack_size);
+                        isent = send(data_sock, (char*)&pack_len, 4, 0);
+                        if (isent < 0) {
+                            printf("连接已断开1\n");
+                            closesocket(data_sock);
+                            return;
+                        }
+                        if (isent != 4) {
+                            printf("发送包长度失败\n");
+                        }
+                        uint8_t* pdata = ts_data;
+                        int sent_count = 0;
+                        while (sent_count < pack_size)
+                        {
+                            int isent = send(data_sock, (char*)pdata + sent_count, pack_size - sent_count, 0);
+                            if (isent < 0) {
+                                printf("连接已断开7\n");
+                                closesocket(data_sock);
+                                return;
+                            }
+                            sent_count += isent;
+                        }
+                        run_status.sent_packages_size += sent_count;
+                        //printf("发送数据包成功:%d\n", packageid);
+                        //等待响应
+                        /*
+                        uint32_t m_recv = 0;
+                        do {
+                            int iread = recv(data_sock, (char*)&m_recv, 4, 0);
+                            if (iread == -1) {
+                                printf("连接已断开4\n");
+                                closesocket(data_sock);
+                                return;
+                            }
+                            if (iread != 4) {
+                                printf("接收包ID失败\n");
+                                break;
+                            }
+                        } while (m_recv == t_net);
+                        uint32_t pid_net_recv = m_recv;
+
+                        uint32_t pid_recv = ntohl(pid_net_recv);
+                        if (pid_recv != packageid)
+                        {
+                            printf("包ID响应错误\n");
+                        }
+                        //返回状态码
+                        uint8_t status_code = 0;
+                        int iread = recv(data_sock, (char*)&status_code, 1, 0);
+                        if (iread == -1) {
+                            printf("连接已断开5\n");
+                            closesocket(data_sock);
+                            return;
+                        }
+                        */
+                    }
+                    if (pack_size != ts_size)
+                    {
+                        reserve_size = ts_size - pack_size;
+                        memcpy(package, ts_data + pack_size, reserve_size);
+                    }
                 }
             }
+            else
+            {
+                memcpy(&package[reserve_size], ts_data, ts_size);
+                reserve_size += ts_size;
+            }
+            times++;
+            if (times % 10 == 0)
+            {
+                //std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(1)));
+            }
         }
-        else
+        catch (const std::exception& e)
         {
-            memcpy(&package[reserve_size], ts_data, ts_size);
-            reserve_size += ts_size;
+            log(e.what());
+            break;
         }
-        times++;
-        if (times % 10 == 0)
-        {
-            //std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(1)));
+        catch (...) { // 捕获所有未处理的异常
+            std::cerr << "Unknown exception" << std::endl;
+            break;
         }
     }
 }

@@ -4,5 +4,11 @@
     "ip": "192.168.2.80",
     "user": "tv",
     "password": "tv"
+  },
+  {
+    "name": "pi",
+    "ip": "192.168.2.119",
+    "user": "guest",
+    "password": "guest"
   }
 ]

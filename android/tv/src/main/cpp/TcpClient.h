@@ -28,6 +28,7 @@ public:
 private:
     void receiveThreadFunc();
     bool processReceivedData();
+    void responseDisconnect();
     
     int sockfd = -1;
     std::atomic<bool> running{false};
@@ -38,7 +39,10 @@ private:
     static const size_t BUFFER_SIZE = 1024 * 1024; // 1MB
 
     bool isdownload = false;
-    std::ofstream file;
+    //std::ofstream file;
+
+    FILE* fp = NULL;
+
     bool begin_download = false;
     uint32_t filesize = 0;
     uint32_t writesize = 0;

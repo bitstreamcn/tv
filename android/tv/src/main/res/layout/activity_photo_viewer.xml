@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black"
+    tools:context=".PhotoViewerActivity">
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/imageView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerInside"
+        android:adjustViewBounds="true"
+        android:keepScreenOn="true"
+        android:focusable="true"
+        android:focusableInTouchMode="true" />
+
+    <!-- 导航信息显示 -->
+    <TextView
+        android:id="@+id/navigationTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="20dp"
+        android:textColor="@android:color/white"
+        android:textSize="16sp"
+        android:background="#80000000"
+        android:padding="8dp"
+        android:visibility="gone" />
+
+    <!-- 时间显示 -->
+    <TextView
+        android:id="@+id/timeTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|right"
+        android:layout_marginTop="20dp"
+        android:layout_marginRight="20dp"
+        android:textColor="@android:color/white"
+        android:textSize="20sp"
+        android:background="#80000000"
+        android:padding="8dp" />
+
+    <!-- 后台预下载loading图标 -->
+    <include
+        android:id="@+id/backgroundLoadingLayout"
+        layout="@layout/background_loading_indicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|right"
+        android:layout_marginBottom="20dp"
+        android:layout_marginRight="20dp"
+        android:visibility="gone"/>
+
+</FrameLayout>

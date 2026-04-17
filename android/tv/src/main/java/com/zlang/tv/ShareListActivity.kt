@@ -175,8 +175,8 @@ class ShareListActivity : ComponentActivity() {
                                 val name = list[i].name
                                 val path = list[i].path
                                 val type = "directory"
-                                
-                                fileItems.add(FileItem(name, type, path))
+                                val size = list[i].contentLengthLong
+                                fileItems.add(FileItem(name, type, path, size))
                             }
                             
                             // 更新适配器

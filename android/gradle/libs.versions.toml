@@ -16,6 +16,8 @@ lifecycleRuntimeKtx = "2.6.1"
 activityCompose = "1.10.1"
 recyclerview = "1.4.0"
 recyclerviewVersion = "1.1.0"
+monitor = "1.6.1"
+viewfinderCore = "1.5.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -39,6 +41,7 @@ androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecyc
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
 recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerviewVersion" }
+androidx-monitor = { group = "androidx.test", name = "monitor", version.ref = "monitor" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

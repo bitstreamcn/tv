@@ -18,11 +18,19 @@ import androidx.activity.ComponentActivity
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.C
+import androidx.media3.common.TrackGroup
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.Tracks
+import androidx.media3.exoplayer.source.TrackGroupArray
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.AudioSink.UnexpectedDiscontinuityException
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
@@ -34,6 +42,8 @@ import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.media3.exoplayer.trackselection.TrackSelection
+
 
 
 class FFmpegVideoPlayerActivity : ComponentActivity() {
@@ -138,10 +148,10 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
             }
             if (null == player || player?.currentPosition == 0L || player?.bufferedPosition == 0L) {
                 // 初始化播放器
-                setupPlayer()
+                //setupPlayer()
                 // 开始播放
                 playVideo(currentVideoPath, startPosition)
-                handler.postDelayed(this, 10000)
+                handler.postDelayed(this, 30000)
             }
         }
     }
@@ -192,7 +202,7 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
 
         updateTime()
         handler.postDelayed(updateTimeRunnable, 1000)
-        handler.postDelayed(retryRunnable, 10000)
+        handler.postDelayed(retryRunnable, 20000)
 
 
     }
@@ -247,6 +257,9 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
         setupControlButtons()
     }
 
+    var prev_position : Long = 0
+    var add_step : Int = 1000
+
     private fun setupPlayer() {
         try {
             bufferMonitor?.stop()
@@ -255,7 +268,10 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
 
             // 配置 ExoPlayer
             val trackSelector = DefaultTrackSelector(this).apply {
-                setParameters(buildUponParameters().setMaxVideoSizeSd())
+                setParameters(buildUponParameters().setMaxVideoSizeSd()
+                    .setPreferredTextLanguage("zh") // 优先选择中文
+                    //.setEnabledTextTracks(TrackSelectionParameters.INCLUDE_ALL) // 启用所有字幕轨道
+                )
             }
 
             val loadControl = DefaultLoadControl.Builder()
@@ -270,6 +286,11 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
             player = ExoPlayer.Builder(this)
                 .setTrackSelector(trackSelector)
                 .setLoadControl(loadControl)
+                .setRenderersFactory(DefaultRenderersFactory(this).apply {
+                    setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+                    setEnableDecoderFallback(true)
+                    setMediaCodecSelector(MediaCodecSelector.DEFAULT) // 启用硬件加速
+                })
                 .build()
                 .apply {
                     addListener(playerListener)
@@ -302,7 +323,7 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
 
 
             // 设置事件监听器
-            player!!.addListener(object : Player.Listener {
+            player?.addListener(object : Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
                     Log.e(TAG, "onPlayerError", error)
                     if (error.cause is AudioSink.UnexpectedDiscontinuityException) {
@@ -315,6 +336,26 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
                         player?.stop()
                         val position = (videoSeekBar.progress.toLong() * videoDuration) / 100
                         startVideoFromPosition(position)
+                    }
+                }
+
+                override fun onTracksChanged(tracks: Tracks) {
+                    val textGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
+                    if (textGroups.isNotEmpty()) {
+                        player?.trackSelectionParameters = player!!.trackSelectionParameters
+                            .buildUpon()
+                            .apply {
+                                val textTrackGroups = tracks.groups.filter { group -> group.type == C.TRACK_TYPE_TEXT }
+                                if (textTrackGroups.isNotEmpty()) {
+                                    setOverrideForType(
+                                        TrackSelectionOverride(textTrackGroups[0].mediaTrackGroup, 0)
+                                    )
+                                } else {
+                                    clearOverridesOfType(C.TRACK_TYPE_TEXT) // 可选：清除之前的选择
+                                }
+                            }
+                            .setPreferredTextLanguage("zh") // 可选：优先选择中文
+                            .build()
                     }
                 }
             })
@@ -334,10 +375,19 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
                         {
                             position = pSeek
                         }
-                        if (position > 2000)
+                        if (position < prev_position)
                         {
-                            position -= 2000
+                            position = prev_position
+                            add_step = add_step * 2
                         }
+                        else
+                        {
+                            add_step = 1000
+                        }
+
+                        position += add_step
+                        prev_position = position
+
                         startVideoFromPosition(position)
 
                         //createIntent(this@FFmpegVideoPlayerActivity, currentVideoPath, position, serverIp, true)
@@ -346,11 +396,23 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
                     } else {
                         // 处理其他异常
                         //player?.stop()
-                        //val position = eventTime.eventPlaybackPositionMs
-                        //startVideoFromPosition(position)
+                        val position = eventTime.eventPlaybackPositionMs
+                        startVideoFromPosition(position)
                     }
                 }
+
+
             })
+            player?.apply {
+                setTrackSelectionParameters(
+                    trackSelectionParameters
+                        .buildUpon()
+                        .setPreferredTextLanguages("zh", "en") // 优先中文
+                        .setPreferredTextRoleFlags(C.ROLE_FLAG_SUBTITLE)
+                        .setDisabledTrackTypes(emptySet()) // 确保不禁用文本轨道
+                        .build()
+                )
+            }
 
 
 
@@ -360,6 +422,7 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
             showToast("播放器初始化失败")
         }
     }
+
 
     private val playerListener = object : Player.Listener {
         override fun onPlayerError(error: PlaybackException) {
@@ -416,6 +479,9 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
             mainHandler.postDelayed({
                 player?.prepare()
                 player?.play()
+                player?.apply {
+
+                }
                 retryPlaybackCount++
             }, delay)
         } else {
@@ -432,8 +498,12 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
         // 隐藏加载提示UI
     }
 
-
+    var isstart = false
     private fun startVideoFromPosition(position: Long) {
+        if (isstart)
+        {
+            return
+        }
 
         Log.d("PlayVideo", "调用startVideoFromPosition: position=$position, 视频路径=$currentVideoPath")
 
@@ -455,7 +525,7 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
             }
             //player?.stop()
         }
-
+        isstart = true
         Thread {
             try {
                 val commandStr = command.toString()
@@ -476,6 +546,20 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
                     if (durationSeconds > 0) {
                         videoDuration = (durationSeconds * 1000).toLong()
                     }
+
+                    runOnUiThread{
+                        val progress =
+                            ((currentPlaybackPosition.toFloat() / videoDuration) * 100).toInt()
+                        videoSeekBar.progress = progress
+                        updateTimeText(position, videoDuration)
+                        isSeekMode = true
+                        startProgressUpdate()
+                        showProgressBar()
+                        handler.postDelayed({
+                            videoSeekBar.requestFocus()
+                        }, 500)
+
+                    }
                     // 等待一小段时间让服务器准备好RTSP流
                     Thread.sleep(500)
                     runOnUiThread {
@@ -494,6 +578,9 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
             } catch (e: Exception) {
                 Log.e("PlayVideo", "视频定位出错", e)
                 showToast("调整视频位置失败")
+            }
+            finally {
+                isstart = false
             }
         }.start()
     }
@@ -524,6 +611,7 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
             }
         })
     }
+
 
     private fun setupControlButtons() {
         playPauseText.setOnClickListener {
@@ -664,7 +752,7 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
                     hideProgressBar()
                     return true
                 }
-                finish()
+                showExitConfirmationDialog()
                 return true
             }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
@@ -757,11 +845,13 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
             // 3. 创建并设置 MediaSource
             val mediaSource = mediaSourceFactory.createMediaSource(mediaItem)
 
+
             // 配置播放参数
             player?.apply {
                 setMediaSource(mediaSource)
                 prepare()
                 playWhenReady = true
+
             }
 
             // 将焦点设置到activity上，确保能接收按键事件
@@ -785,6 +875,7 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
         }
     }
 
+
     private fun playVideo(path: String, startPosition: Long = 0) {
         try {
             Log.d(TAG, "开始播放视频: path=$path, startPosition=$startPosition")
@@ -797,67 +888,7 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
             currentVideoPath = path
             this.startPosition = startPosition
 
-            var command = JSONObject().apply {
-                put("action", "stream")
-                put("path", currentVideoPath)
-                put("start_time", formatTimeForServer(startPosition))
-                put("ffmpeg", isFfmpeg)
-            }
-            if (startPosition > 0)
-            {
-                command = JSONObject().apply {
-                    put("action", "seek")
-                    put("path", currentVideoPath)
-                    put("pts", formatTimeForServer(startPosition))
-                    put("ffmpeg", isFfmpeg)
-                }
-                //player?.stop()
-            }
-
-            Thread {
-                try {
-                    val commandStr = command.toString()
-                    Log.d("ServerComm", "发送视频定位请求: $commandStr")
-                    val response = TcpControlClient.sendTlv(commandStr)
-                    Log.d("ServerComm", "定位请求接收数据: $response")
-
-                    val jsonResponse = response
-
-                    if (jsonResponse.getString("status") == "success") {
-                        val durationSeconds = jsonResponse.optDouble("duration", 0.0)
-                        Log.d("ServerComm", "视频时长(秒): $durationSeconds")
-                        // 转换为毫秒
-                        if (durationSeconds > 0) {
-                            videoDuration = (durationSeconds * 1000).toLong()
-                        }
-                        // 等待一小段时间让服务器准备好RTSP流
-                        Thread.sleep(500)
-                        runOnUiThread {
-                            Log.d("PlayVideo", "定位请求成功，重新设置播放器")
-                            setupPlayer()
-                            startPlaying()
-                            currentPlaybackPosition = startPosition
-                            updateTimeText(currentPlaybackPosition, videoDuration)
-                            val progress =
-                                ((currentPlaybackPosition.toFloat() / videoDuration) * 100).toInt()
-                            videoSeekBar.progress = progress
-                            showProgressBar()
-                            // 将焦点设置到activity上，确保能接收按键事件
-                            //this.window.decorView.rootView.clearFocus()
-                            Log.d("PlayVideo", "从指定位置播放时已将焦点设置到Activity上")
-                        }
-                    } else {
-                        val errorMessage = jsonResponse.optString("message", "未知错误")
-                        Log.e("PlayVideo", "调整视频位置失败: $errorMessage")
-                        showToast("调整视频位置失败: $errorMessage")
-                    }
-                } catch (e: Exception) {
-                    Log.e("PlayVideo", "视频定位出错", e)
-                    showToast("调整视频位置失败")
-                }
-            }.start()
-
-
+            startVideoFromPosition(startPosition)
 
         } catch (e: Exception) {
             Log.e(TAG, "播放视频时出错", e)
@@ -1044,7 +1075,7 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
 
 
     private fun showToast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        runOnUiThread { Toast.makeText(this, message, Toast.LENGTH_SHORT).show() }
     }
 
     override fun onPause() {
@@ -1086,6 +1117,77 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
         }
     }
 
+    private fun showExitConfirmationDialog() {
+        runOnUiThread {
+            val dialogView = layoutInflater.inflate(R.layout.dialog_exit_confirm, null)
+            val titleTextView = dialogView.findViewById<TextView>(R.id.titleTextView)
+            val messageTextView = dialogView.findViewById<TextView>(R.id.messageTextView)
+            val cancelButton = dialogView.findViewById<TextView>(R.id.cancelButton)
+            val confirmButton = dialogView.findViewById<TextView>(R.id.confirmButton)
+            
+            // 设置对话框内容
+            titleTextView.text = "退出确认"
+            messageTextView.text = "确定要退出播放吗？"
+            
+            // 创建自定义对话框
+            val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(true)
+                .create()
+            
+            // 设置对话框背景透明，让自定义背景生效
+            dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+            
+            // 设置按钮点击事件
+            cancelButton.setOnClickListener {
+                dialog.dismiss()
+            }
+            
+            confirmButton.setOnClickListener {
+                dialog.dismiss()
+                finish()
+            }
+            
+            // 设置焦点和按键监听
+            cancelButton.setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    when (keyCode) {
+                        KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                            confirmButton.requestFocus()
+                            return@setOnKeyListener true
+                        }
+                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                            dialog.dismiss()
+                            return@setOnKeyListener true
+                        }
+                    }
+                }
+                false
+            }
+            
+            confirmButton.setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    when (keyCode) {
+                        KeyEvent.KEYCODE_DPAD_LEFT -> {
+                            cancelButton.requestFocus()
+                            return@setOnKeyListener true
+                        }
+                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                            dialog.dismiss()
+                            finish()
+                            return@setOnKeyListener true
+                        }
+                    }
+                }
+                false
+            }
+            
+            // 显示对话框并设置初始焦点
+            dialog.show()
+            cancelButton.requestFocus()
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
 
@@ -1117,7 +1219,10 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
         instance = null
 
         handler.removeCallbacks(updateTimeRunnable)
+        handler.removeCallbacks(retryRunnable)
 
         isfinish = true;
+
+        TcpControlClient.breakRequest()
     }
 }

@@ -44,12 +44,14 @@ void control_thread(SOCKET ctrl_sock) {
     int received = recv(ctrl_sock, buff, 4, MSG_WAITALL);
     if (received != 4) {
         closesocket(ctrl_sock);
+        std::cerr << "recv failed: received != 4" << std::endl;
         return;
     }
     Session* session = nullptr;
     uint32_t sessionid = ntohl(*reinterpret_cast<uint32_t*>(&buff[0]));
     if (sessionid == EMPTY_SESSION_ID)
     {
+        std::cout << "new session:" << sessionid << std::endl;
         session = new Session();
         {
             std::lock_guard<std::mutex> lock(session_mutex);
@@ -57,6 +59,7 @@ void control_thread(SOCKET ctrl_sock) {
         }
     }
     else {
+        std::cout << "attach session: " << sessionid << std::endl;
         {
             std::lock_guard<std::mutex> lock(session_mutex);
             session = session_map[sessionid];
@@ -114,6 +117,7 @@ void control_listen_thread(SOCKET ctrl_listen) {
     while ((ctrl_sock = accept(ctrl_listen, NULL, NULL)) > 0 && !exit_program)
     {
         try {
+            std::cout << "accept:" << ctrl_sock << std::endl;
             // 启动线程
             std::thread ctrl_handler(control_thread, ctrl_sock);
             ctrl_handler.detach();

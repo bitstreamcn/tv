@@ -199,6 +199,7 @@ class MainActivity : ComponentActivity() {
 
         setContentView(R.layout.activity_main)
         instance = this
+        PageTimeDisplay.attach(this)
 
         // 初始化界面状态
         currentViewState = VIEW_STATE_MAIN

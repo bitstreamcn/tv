@@ -68,6 +68,7 @@ class FileListActivity : ComponentActivity() {
         }
 
         PathRecordsManager.init(this)
+        PageTimeDisplay.attach(this)
 
         // 初始化视图
         initViews()

@@ -173,6 +173,8 @@ class SmbVideoPlayerActivity : ComponentActivity() {
             return
         }
 
+        PageTimeDisplay.attach(this)
+
         Log.d("SmbVideoPlayerActivity", "播放地址：" + currentVideoPath)
 
         smbServer = MainActivity.smbServer?.let { serverArray ->

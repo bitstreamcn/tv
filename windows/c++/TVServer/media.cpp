@@ -1,4 +1,4 @@
-#include "media.h"
+ï»¿#include "media.h"
 #include "encode.h"
 
 #include <windows.h>
@@ -17,28 +17,28 @@ namespace fs = std::filesystem;
 int Media::GetSubIndex(std::string inut_file, SUB_Type type)
 {
     int idx = -1;
-    // ´ò¿ªÊäÈëÎÄ¼ş
+    // æ‰“å¼€è¾“å…¥æ–‡ä»¶
     AVFormatContext* fmt_ctx = nullptr;
     if (avformat_open_input(&fmt_ctx, inut_file.c_str(), nullptr, nullptr) < 0) {
-        std::cerr << "ÎŞ·¨´ò¿ªÎÄ¼ş: " << inut_file << std::endl;
+        std::cerr << "æ— æ³•æ‰“å¼€æ–‡ä»¶: " << inut_file << std::endl;
         return -1;
     }
 
-    // »ñÈ¡Á÷ĞÅÏ¢
+    // è·å–æµä¿¡æ¯
     if (avformat_find_stream_info(fmt_ctx, nullptr) < 0) {
-        std::cerr << "ÎŞ·¨»ñÈ¡Á÷ĞÅÏ¢" << std::endl;
+        std::cerr << "æ— æ³•è·å–æµä¿¡æ¯" << std::endl;
         avformat_close_input(&fmt_ctx);
         return -1;
     }
 
     int idx_sub = -1;
  
-    // ±éÀúËùÓĞÁ÷ 
+    // éå†æ‰€æœ‰æµ 
     for (unsigned int i = 0; i < fmt_ctx->nb_streams; i++) {
         AVStream* stream = fmt_ctx->streams[i];
         AVCodecParameters* codec_params = stream->codecpar;
 
-        // Ö»´¦Àí×ÖÄ»Á÷
+        // åªå¤„ç†å­—å¹•æµ
         if (codec_params->codec_type == AVMEDIA_TYPE_SUBTITLE) {
             idx_sub++;
             bool issrt = false;
@@ -60,7 +60,7 @@ int Media::GetSubIndex(std::string inut_file, SUB_Type type)
             {
                 idx = idx_sub;
             }
-            // »ñÈ¡ÓïÑÔĞÅÏ¢ (´Ómetadata)
+            // è·å–è¯­è¨€ä¿¡æ¯ (ä»metadata)
             AVDictionaryEntry* lang_tag = av_dict_get(stream->metadata, "language", nullptr, 0);
             if (lang_tag != nullptr && _stricmp(lang_tag->value, "chi") == 0)
             {
@@ -100,7 +100,7 @@ Media::Media(std::string inut_file, Session& s, bool ffmpeg)
             return;
         }
 
-        // 3. ÕÒµ½ÊÓÆµÁ÷Ë÷Òı
+        // 3. æ‰¾åˆ°è§†é¢‘æµç´¢å¼•
         int video_stream_idx = -1;
         for (unsigned int i = 0; i < input_fmt_ctx->nb_streams; i++) {
             if (input_fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
@@ -112,30 +112,30 @@ Media::Media(std::string inut_file, Session& s, bool ffmpeg)
             std::cerr << "No video stream found.\n";
             return;
         }
-        // 4. »ñÈ¡ FPS£¨Ö¡ÂÊ£©
+        // 4. è·å– FPSï¼ˆå¸§ç‡ï¼‰
         AVStream* video_stream = input_fmt_ctx->streams[video_stream_idx];
-        // ·½·¨ 1£ºÊ¹ÓÃ `avg_frame_rate`£¨ÍÆ¼ö£©
+        // æ–¹æ³• 1ï¼šä½¿ç”¨ `avg_frame_rate`ï¼ˆæ¨èï¼‰
         fps = av_q2d(video_stream->avg_frame_rate);
-        // ·½·¨ 2£ºÈç¹û `avg_frame_rate` ÎŞĞ§£¬³¢ÊÔÓÃ `r_frame_rate`
+        // æ–¹æ³• 2ï¼šå¦‚æœ `avg_frame_rate` æ— æ•ˆï¼Œå°è¯•ç”¨ `r_frame_rate`
         if (fps <= 0.0) {
             fps = av_q2d(video_stream->r_frame_rate);
         }
-        // ·½·¨ 3£ºÈç¹ûÎŞ·¨»ñÈ¡£¬³¢ÊÔ¼ÆËã FPS = `time_base` µÄµ¹Êı£¨ÊÊÓÃÓÚ¿É±äÖ¡ÂÊ£©
+        // æ–¹æ³• 3ï¼šå¦‚æœæ— æ³•è·å–ï¼Œå°è¯•è®¡ç®— FPS = `time_base` çš„å€’æ•°ï¼ˆé€‚ç”¨äºå¯å˜å¸§ç‡ï¼‰
         if (fps <= 0.0 && video_stream->time_base.den > 0) {
             fps = 1.0 / av_q2d(video_stream->time_base);
         }
 
         AVCodecParameters* pCodecParams = video_stream->codecpar;
-        // »ñÈ¡ÏñËØ¸ñÊ½ (AVPixelFormat)
+        // è·å–åƒç´ æ ¼å¼ (AVPixelFormat)
         pixel_format = (enum AVPixelFormat)pCodecParams->format;
     }
-    // ²éÕÒÊÓÆµºÍÒôÆµÁ÷
+    // æŸ¥æ‰¾è§†é¢‘å’ŒéŸ³é¢‘æµ
     /*
     video_idx = av_find_best_stream(input_fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
     audio_idx = av_find_best_stream(input_fmt_ctx, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
 
     if (video_idx < 0 && audio_idx < 0) {
-        fprintf(stderr, "Î´ÕÒµ½ÒôÊÓÆµÁ÷\n");
+        fprintf(stderr, "æœªæ‰¾åˆ°éŸ³è§†é¢‘æµ\n");
         avformat_close_input(&input_fmt_ctx);
         return;
     }
@@ -181,7 +181,7 @@ int Media::write_packet(void* opaque, uint8_t* buf, int buf_size)
 int Media::write_packet(uint8_t* buf, int buf_size)
 {
     {
-        // Ğ´Èë¶ÓÁĞ²Ù×÷
+        // å†™å…¥é˜Ÿåˆ—æ“ä½œ
         std::unique_lock<std::mutex> lock(session.data_queues.mutex);
         session.data_queues.ts_packets.push(std::move(std::vector<uint8_t>(buf, buf + buf_size)));
         session.data_queues.cv.notify_all();
@@ -190,7 +190,7 @@ int Media::write_packet(uint8_t* buf, int buf_size)
 
     if (buf_size == DEC_BUFF_SIZE)
     {
-        //»º³åÇøÂú£¬Ó¦¸ÃÔö¼Ó»º³åÇø
+        //ç¼“å†²åŒºæ»¡ï¼Œåº”è¯¥å¢åŠ ç¼“å†²åŒº
         //std::cout << "write_queue buf_size full" << std::endl;
     }
 
@@ -200,7 +200,7 @@ int Media::write_packet(uint8_t* buf, int buf_size)
     //debugFile.write(reinterpret_cast<const char*>(buf), buf_size);
     //debugFile.flush();
 
-    //³ö´í·µ»Ø -1
+    //å‡ºé”™è¿”å› -1
     return buf_size;
 }
 
@@ -208,7 +208,7 @@ bool Media::VideoDecodeThread(Media* This) {
     return This->VideoDecodeCallback();
 }
 bool Media::VideoDecodeCallback() {
-    //ÊÓÆµ½âÂë±àÂë£¬Ê±¼äÍ¬²½
+    //è§†é¢‘è§£ç ç¼–ç ï¼Œæ—¶é—´åŒæ­¥
     AVFrame* frame = av_frame_alloc();
     if (nullptr == frame)
     {
@@ -217,7 +217,7 @@ bool Media::VideoDecodeCallback() {
     }
     while (!stop_flag)
     {
-        //¼ì²é¶ÓÁĞ£¬Èç¹û¶ÓÁĞÊı¾İÌ«¶à£¬ÔİÍ£½âÂë
+        //æ£€æŸ¥é˜Ÿåˆ—ï¼Œå¦‚æœé˜Ÿåˆ—æ•°æ®å¤ªå¤šï¼Œæš‚åœè§£ç 
         {
             std::unique_lock<std::mutex> lock(video_frame_queue_mutex);
             if (video_frame_queue.size() >= MAX_QUEUE_SIZE)
@@ -228,7 +228,7 @@ bool Media::VideoDecodeCallback() {
                 continue;
             }
         }
-        //ÒôÊÓÆµÍ¬²½
+        //éŸ³è§†é¢‘åŒæ­¥
         {
             std::unique_lock<std::mutex> lock(clock_mutex);
             if (audio_clock < video_clock && (video_clock - audio_clock) > 10 && (video_clock - audio_clock) < 60)
@@ -250,7 +250,7 @@ bool Media::VideoDecodeCallback() {
         lock.unlock();
         if (nullptr == packet)
         {
-            //²»Ó¦¸Ã³öÏÖÕâÖÖÇé¿ö
+            //ä¸åº”è¯¥å‡ºç°è¿™ç§æƒ…å†µ
             std::cout << "VideoDecodeCallback packet null" << std::endl;
             continue;
         }
@@ -283,7 +283,7 @@ bool Media::VideoDecodeCallback() {
                 std::lock_guard<std::mutex> lock(clock_mutex);
                 video_clock += frame_delay;
             }
-            // ´¦ÀíÓ²¼şÖ¡£¨¿ÉÄÜĞèÒª´«Êäµ½CPU£©
+            // å¤„ç†ç¡¬ä»¶å¸§ï¼ˆå¯èƒ½éœ€è¦ä¼ è¾“åˆ°CPUï¼‰
             //AVFrame* sw_frame = av_frame_alloc();
             //av_hwframe_transfer_data(sw_frame, frame, 0);
 
@@ -322,7 +322,7 @@ bool Media::VideoEncodeCallback()
         av_packet_free(&enc_pkt);
         return false;
     }
-    // ×ª»»Ö¡¸ñÊ½
+    // è½¬æ¢å¸§æ ¼å¼
     enc_frame->format = video_enc_ctx->pix_fmt;
     enc_frame->width = video_enc_ctx->width;
     enc_frame->height = video_enc_ctx->height;
@@ -333,7 +333,7 @@ bool Media::VideoEncodeCallback()
         av_packet_free(&enc_pkt);
         return false;
     }
-    // ´Ó±àÂëÆ÷µÄÓ²¼şÉÏÏÂÎÄÖĞ·ÖÅä GPU ÄÚ´æ
+    // ä»ç¼–ç å™¨çš„ç¡¬ä»¶ä¸Šä¸‹æ–‡ä¸­åˆ†é… GPU å†…å­˜
     /*
     if (av_hwframe_get_buffer(video_enc_ctx->hw_frames_ctx, enc_frame, 0) < 0) {
         std::cout << "VideoEncodeCallback av_hwframe_get_buffer fail" << std::endl;
@@ -344,7 +344,7 @@ bool Media::VideoEncodeCallback()
     */
     while (!stop_flag)
     {
-        //¼ì²é¶ÓÁĞ£¬Èç¹û¶ÓÁĞÊı¾İÌ«¶à£¬ÔİÍ£½âÂë
+        //æ£€æŸ¥é˜Ÿåˆ—ï¼Œå¦‚æœé˜Ÿåˆ—æ•°æ®å¤ªå¤šï¼Œæš‚åœè§£ç 
         {
             std::unique_lock<std::mutex> lock(session.data_queues.mutex);
             if (session.data_queues.ts_packets.size() >= MAX_QUEUE_SIZE)
@@ -366,14 +366,14 @@ bool Media::VideoEncodeCallback()
         lock.unlock();
         if (nullptr == frame)
         {
-            //²»Ó¦¸Ã³öÏÖÕâÖÖÇé¿ö
+            //ä¸åº”è¯¥å‡ºç°è¿™ç§æƒ…å†µ
             std::cout << "VideoEncodeCallback frame null" << std::endl;
             av_frame_free(&frame);
             break;
         }
 
         sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height, enc_frame->data, enc_frame->linesize);
-        // »òÖ±½ÓÒıÓÃÔ­Ö¡£¨±ÜÃâ¿½±´£©
+        // æˆ–ç›´æ¥å¼•ç”¨åŸå¸§ï¼ˆé¿å…æ‹·è´ï¼‰
         /*
         if (0 != av_frame_ref(enc_frame, frame))
         {
@@ -385,12 +385,12 @@ bool Media::VideoEncodeCallback()
         int64_t pts = frame->pts;
 
         enc_frame->pts = av_rescale_q(pts, input_fmt_ctx->streams[video_idx]->time_base, video_enc_ctx->time_base);
-        // ±àÂë²¢·¢ËÍ
+        // ç¼–ç å¹¶å‘é€
         if (0 != (ret = avcodec_send_frame(video_enc_ctx, enc_frame)))
         {
             char errbuf[AV_ERROR_MAX_STRING_SIZE];
             av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-            std::cout << "VideoEncodeCallback avcodec_send_frame fail£º" << errbuf << std::endl;
+            std::cout << "VideoEncodeCallback avcodec_send_frame failï¼š" << errbuf << std::endl;
             av_frame_free(&frame);
             break;
         }
@@ -432,7 +432,7 @@ bool Media::AudioDecodeCallback()
     }
     while (!stop_flag)
     {
-        //¼ì²é¶ÓÁĞ£¬Èç¹û¶ÓÁĞÊı¾İÌ«¶à£¬ÔİÍ£½âÂë
+        //æ£€æŸ¥é˜Ÿåˆ—ï¼Œå¦‚æœé˜Ÿåˆ—æ•°æ®å¤ªå¤šï¼Œæš‚åœè§£ç 
         {
             std::unique_lock<std::mutex> lock(audio_frame_queue_mutex);
             if (audio_frame_queue.size() >= MAX_QUEUE_SIZE)
@@ -443,7 +443,7 @@ bool Media::AudioDecodeCallback()
                 continue;
             }
         }
-        //ÒôÊÓÆµÍ¬²½
+        //éŸ³è§†é¢‘åŒæ­¥
         {
             std::unique_lock<std::mutex> lock(clock_mutex);
             if (audio_clock > video_clock && (audio_clock - video_clock) > 10 && (audio_clock - video_clock) < 60)
@@ -465,7 +465,7 @@ bool Media::AudioDecodeCallback()
         lock.unlock();
         if (nullptr == packet)
         {
-            //²»Ó¦¸Ã³öÏÖÕâÖÖÇé¿ö
+            //ä¸åº”è¯¥å‡ºç°è¿™ç§æƒ…å†µ
             std::cout << "AudioDecodeCallback packet null" << std::endl;
             continue;
         }
@@ -484,7 +484,7 @@ bool Media::AudioDecodeCallback()
                 int64_t pts = audio_last_pts + audio_dec_ctx->frame_size;
                 if (abs(packet->pts - pts) > 1)
                 {
-                    //fprintf(stderr, "PTS²»Á¬Ğø! Ç°Öµ:%lld µ±Ç°:%lld\n", pts, packet->pts);
+                    //fprintf(stderr, "PTSä¸è¿ç»­! å‰å€¼:%lld å½“å‰:%lld\n", pts, packet->pts);
                     //packet->pts = pts;
                 }
             }
@@ -532,7 +532,7 @@ bool Media::AudioDecodeCallback()
                     }
                     if (abs(frame->pts - pts) > 1)
                     {
-                        //fprintf(stderr, "PTS²»Á¬Ğø! Ç°Öµ:%lld µ±Ç°:%lld\n", pts, frame->pts);
+                        //fprintf(stderr, "PTSä¸è¿ç»­! å‰å€¼:%lld å½“å‰:%lld\n", pts, frame->pts);
                         frame->pts = pts;
                     }
                 }
@@ -586,7 +586,7 @@ bool Media::AudioEncodeCallback()
         av_packet_free(&enc_pkt);
         return false;
     }
-    // Ê¹ÓÃĞÂAPIÉèÖÃÒôÆµÖ¡²ÎÊı
+    // ä½¿ç”¨æ–°APIè®¾ç½®éŸ³é¢‘å¸§å‚æ•°
     enc_frame->sample_rate = audio_enc_ctx->sample_rate;
     av_channel_layout_copy(&enc_frame->ch_layout, &audio_enc_ctx->ch_layout);
     enc_frame->format = audio_enc_ctx->sample_fmt;
@@ -600,7 +600,7 @@ bool Media::AudioEncodeCallback()
     }
     while (!stop_flag)
     {
-        //¼ì²é¶ÓÁĞ£¬Èç¹û¶ÓÁĞÊı¾İÌ«¶à£¬ÔİÍ£½âÂë
+        //æ£€æŸ¥é˜Ÿåˆ—ï¼Œå¦‚æœé˜Ÿåˆ—æ•°æ®å¤ªå¤šï¼Œæš‚åœè§£ç 
         {
             std::unique_lock<std::mutex> lock(session.data_queues.mutex);
             session.run_status.audio_frame_count = audio_frame_queue.size();
@@ -622,11 +622,11 @@ bool Media::AudioEncodeCallback()
         lock.unlock();
         if (nullptr == frame)
         {
-            //²»Ó¦¸Ã³öÏÖÕâÖÖÇé¿ö
+            //ä¸åº”è¯¥å‡ºç°è¿™ç§æƒ…å†µ
             std::cout << "AudioEncodeCallback frame null" << std::endl;
         }
 
-        // Ö´ĞĞÖØ²ÉÑù
+        // æ‰§è¡Œé‡é‡‡æ ·
         if (0 != swr_convert_frame(swr_ctx, enc_frame, frame))
         {
             std::cout << "AudioEncodeCallback swr_convert_frame fail" << std::endl;
@@ -642,19 +642,19 @@ bool Media::AudioEncodeCallback()
             {
                 break;
             }
-            // Èç¹ûÒÑÉèÖÃ audio_output_stream->time_base = audio_encoder_context->time_base
-            // ÔòÎŞĞè×ª»»£¬·ñÔòĞèÕıÈ·Æ¥Åä
+            // å¦‚æœå·²è®¾ç½® audio_output_stream->time_base = audio_encoder_context->time_base
+            // åˆ™æ— éœ€è½¬æ¢ï¼Œå¦åˆ™éœ€æ­£ç¡®åŒ¹é…
             //av_packet_rescale_ts(enc_pkt, audio_enc_ctx->time_base, output_ctx->streams[1]->time_base);
             /*
             static int64_t last_pts = AV_NOPTS_VALUE;
             if (last_pts != AV_NOPTS_VALUE && enc_pkt->pts != last_pts + 1920) {
-                fprintf(stderr, "PTS²»Á¬Ğø! Ç°Öµ:%lld µ±Ç°:%lld\n",
+                fprintf(stderr, "PTSä¸è¿ç»­! å‰å€¼:%lld å½“å‰:%lld\n",
                     last_pts, enc_pkt->pts);
             }
             last_pts = enc_pkt->pts;
             */
 
-            // Ç¿ÖÆDTSÍ¬²½
+            // å¼ºåˆ¶DTSåŒæ­¥
             //enc_pkt->dts = enc_pkt->pts;
             enc_pkt->stream_index = 1;
             {
@@ -765,7 +765,7 @@ bool Media::MainRawCallback()
     if (!stop_flag) {
         return true;
     }
-    // ×¼±¸Êä³öÉÏÏÂÎÄ
+    // å‡†å¤‡è¾“å‡ºä¸Šä¸‹æ–‡
     if (avformat_alloc_output_context2(&output_ctx, NULL, "mpegts", NULL) < 0)
     {
         std::cout << "avformat_alloc_output_context2 fail" << std::endl;
@@ -782,7 +782,7 @@ bool Media::MainRawCallback()
     AVStream* streams[20];
     memset(streams, 0, sizeof(streams));
 
-    //Ö±½Ó¸´ÖÆËùÓĞÁ÷
+    //ç›´æ¥å¤åˆ¶æ‰€æœ‰æµ
     for (unsigned int i = 0; i < input_fmt_ctx->nb_streams && i < 20; i++) {
         AVStream* in_stream = input_fmt_ctx->streams[i];
         AVStream* out_stream = avformat_new_stream(output_ctx, nullptr);
@@ -799,7 +799,7 @@ bool Media::MainRawCallback()
         }
         out_stream->time_base = in_stream->time_base;
     }
-    // Ğ´ÈëÊä³öÍ·²¿
+    // å†™å…¥è¾“å‡ºå¤´éƒ¨
     avformat_write_header(output_ctx, NULL);
 
     AVPacket* encoded_packet = av_packet_alloc();
@@ -817,7 +817,7 @@ bool Media::MainRawCallback()
         session.run_status.audio_clock = audio_clock;
         session.run_status.video_clock = video_clock;
         bool pause = false;
-        //¼ì²é¶ÓÁĞ£¬Èç¹û¶ÓÁĞÊı¾İÌ«¶à£¬ÔİÍ£½âÂë
+        //æ£€æŸ¥é˜Ÿåˆ—ï¼Œå¦‚æœé˜Ÿåˆ—æ•°æ®å¤ªå¤šï¼Œæš‚åœè§£ç 
         {
             std::lock_guard<std::mutex> lock(session.data_queues.mutex);
             if (session.data_queues.ts_packets.size() >= MAX_QUEUE_SIZE)
@@ -840,12 +840,12 @@ bool Media::MainRawCallback()
             }
             else
             {
-                // ´¦ÀíÎÄ¼ş½áÊø»ò´íÎó
+                // å¤„ç†æ–‡ä»¶ç»“æŸæˆ–é”™è¯¯
                 std::cout << "av_read_frame fail" << std::endl;
             }
         }
 
-        //²»×ªÂëÖ±½ÓÊä³ö
+        //ä¸è½¬ç ç›´æ¥è¾“å‡º
         AVStream* in_stream = input_fmt_ctx->streams[encoded_packet->stream_index];
         AVStream* out_stream = streams[encoded_packet->stream_index];
         if (nullptr != out_stream)
@@ -869,7 +869,7 @@ bool Media::MainRawCallback()
             std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(1)));
         }
     }
-    // ÊÕÎ²¹¤×÷
+    // æ”¶å°¾å·¥ä½œ
     av_write_trailer(output_ctx);
     av_packet_free(&encoded_packet);
     return true;
@@ -878,38 +878,38 @@ bool Media::MainRawCallback()
 bool Media::MainFileCallback()
 {
     std::string pathgb2312 = UTF8ToGB2312(path_file);
-    std::cout << "´ò¿ªÎÄ¼ş£º" << pathgb2312  << std::endl;
-    // ÒÔ¶ş½øÖÆÄ£Ê½´ò¿ªÎÄ¼ş
+    std::cout << "æ‰“å¼€æ–‡ä»¶ï¼š" << pathgb2312  << std::endl;
+    // ä»¥äºŒè¿›åˆ¶æ¨¡å¼æ‰“å¼€æ–‡ä»¶
     file = std::ifstream(pathgb2312, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
-        std::cerr << "ÎŞ·¨´ò¿ªÎÄ¼ş: " << pathgb2312 << std::endl;
+        std::cerr << "æ— æ³•æ‰“å¼€æ–‡ä»¶: " << pathgb2312 << std::endl;
         return false;
     }
 
-    // »ñÈ¡ÎÄ¼ş´óĞ¡
+    // è·å–æ–‡ä»¶å¤§å°
     std::streamsize filesize = file.tellg();
     this->filesize = filesize;
-    file.seekg(0, std::ios::beg); // ÖØÖÃÎÄ¼şÖ¸Õëµ½ÎÄ¼ş¿ªÍ·
+    file.seekg(0, std::ios::beg); // é‡ç½®æ–‡ä»¶æŒ‡é’ˆåˆ°æ–‡ä»¶å¼€å¤´
 
-    std::cout << "filesize£º" << filesize << std::endl;
+    std::cout << "filesizeï¼š" << filesize << std::endl;
 
-    // ´´½¨Ò»¸ö»º³åÇøÀ´´æ´¢ÎÄ¼şÄÚÈİ
+    // åˆ›å»ºä¸€ä¸ªç¼“å†²åŒºæ¥å­˜å‚¨æ–‡ä»¶å†…å®¹
     std::vector<char> buffer(DEC_BUFF_SIZE);
 
     if (seek_target_ > 0 && seek_target_ < filesize) {
         file.seekg(seek_target_, std::ios::beg);
-        std::cout << "seekg£º" << seek_target_ << std::endl;
+        std::cout << "seekgï¼š" << seek_target_ << std::endl;
         seek_target_ = 0;
     }
 
-    // ·¢ËÍÊı¾İ
+    // å‘é€æ•°æ®
     std::streamsize sent = 0;
     bool haserr = false;
     stop_flag = false;
     while (!stop_flag && sent < filesize)
     {
         bool pause = false;
-        //¼ì²é¶ÓÁĞ£¬Èç¹û¶ÓÁĞÊı¾İÌ«¶à£¬ÔİÍ£½âÂë
+        //æ£€æŸ¥é˜Ÿåˆ—ï¼Œå¦‚æœé˜Ÿåˆ—æ•°æ®å¤ªå¤šï¼Œæš‚åœè§£ç 
         {
             std::lock_guard<std::mutex> lock(session.data_queues.mutex);
             if (session.data_queues.ts_packets.size() >= MAX_QUEUE_SIZE)
@@ -923,15 +923,15 @@ bool Media::MainFileCallback()
             std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(1)));
             continue;
         }
-        // ¶ÁÈ¡ÎÄ¼şÄÚÈİµ½»º³åÇø
+        // è¯»å–æ–‡ä»¶å†…å®¹åˆ°ç¼“å†²åŒº
         if (!file.read(buffer.data(), buffer.size())) {
-            std::cerr << "¶ÁÈ¡ÎÄ¼şÊ§°Ü: " << pathgb2312 << std::endl;
+            std::cerr << "è¯»å–æ–‡ä»¶å¤±è´¥: " << pathgb2312 << std::endl;
             break;
         }
         write_packet((uint8_t*)buffer.data(), (int)file.gcount());
         sent += file.gcount();
     }
-    // ¹Ø±ÕÎÄ¼ş
+    // å…³é—­æ–‡ä»¶
     file.close();
     return true;
 }
@@ -945,7 +945,7 @@ bool Media::MainCallback()
     if (!stop_flag) {
         return true;
     }
-    // ×¼±¸Êä³öÉÏÏÂÎÄ
+    // å‡†å¤‡è¾“å‡ºä¸Šä¸‹æ–‡
     if (avformat_alloc_output_context2(&output_ctx, NULL, "mpegts", NULL) < 0)
     {
         std::cout << "avformat_alloc_output_context2 fail" << std::endl;
@@ -960,12 +960,12 @@ bool Media::MainCallback()
     output_ctx->pb = avio_ctx;
 
 
-    // ÅäÖÃÊÓÆµÁ÷
+    // é…ç½®è§†é¢‘æµ
     if (video_idx >= 0) {
         AVStream* in_stream = input_fmt_ctx->streams[video_idx];
 
         const AVCodec* dec = avcodec_find_decoder(in_stream->codecpar->codec_id);
-        //Ó²¼ş½âÂë
+        //ç¡¬ä»¶è§£ç 
         //const AVCodec* dec = avcodec_find_decoder_by_name("h264_cuvid");
         if (nullptr == dec) {
             std::cout << "avcodec_find_decoder fail" << std::endl;
@@ -984,7 +984,7 @@ bool Media::MainCallback()
             Stop();
             return false;
         }
-        // ÉèÖÃÓ²¼şÉè±¸
+        // è®¾ç½®ç¡¬ä»¶è®¾å¤‡
         /*
         {
             AVBufferRef* hw_device_ctx;
@@ -1026,10 +1026,10 @@ bool Media::MainCallback()
         //video_enc_ctx->pix_fmt = avcodec_find_best_pix_fmt_of_list(enc->pix_fmts, video_dec_ctx->pix_fmt, 0, NULL);
         video_enc_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
         //video_enc_ctx->pix_fmt = AV_PIX_FMT_CUDA;
-        video_enc_ctx->time_base = TS_TIME_BASE;// MPEG-TS±ê×¼Ê±¼ä»ù
-        //video_enc_ctx->framerate = { 25, 1 }; // Ã÷È·ÉèÖÃÖ¡ÂÊ
+        video_enc_ctx->time_base = TS_TIME_BASE;// MPEG-TSæ ‡å‡†æ—¶é—´åŸº
+        //video_enc_ctx->framerate = { 25, 1 }; // æ˜ç¡®è®¾ç½®å¸§ç‡
         video_enc_ctx->framerate = video_dec_ctx->framerate;
-        video_enc_ctx->bit_rate = 1000000 * 3; //3 * 1M ±ÈÌØÂÊ
+        video_enc_ctx->bit_rate = 1000000 * 3; //3 * 1M æ¯”ç‰¹ç‡
 
         AVDictionary* opts = nullptr;
         av_dict_set(&opts, "preset", "medium", 0);
@@ -1038,10 +1038,10 @@ bool Media::MainCallback()
         av_dict_set(&opts, "maxrate", "2500k", 0);
         av_dict_set(&opts, "bufsize", "6000k", 0);
 
-        // ÉèÖÃÓ²¼şÉè±¸
+        // è®¾ç½®ç¡¬ä»¶è®¾å¤‡
         /*
         {
-            // ´´½¨Ó²¼şÉè±¸ÉÏÏÂÎÄ
+            // åˆ›å»ºç¡¬ä»¶è®¾å¤‡ä¸Šä¸‹æ–‡
             AVBufferRef* hw_device_ctx;
             if (av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_CUDA, NULL, NULL, 0) < 0) {
                 std::cout << "av_hwdevice_ctx_create fail" << std::endl;
@@ -1049,7 +1049,7 @@ bool Media::MainCallback()
                 return false;
             }
 
-            // ´´½¨Ó²¼şÖ¡ÉÏÏÂÎÄ£¨½â¾ö¸ñÊ½²»Æ¥ÅäÎÊÌâ£©
+            // åˆ›å»ºç¡¬ä»¶å¸§ä¸Šä¸‹æ–‡ï¼ˆè§£å†³æ ¼å¼ä¸åŒ¹é…é—®é¢˜ï¼‰
             AVBufferRef* hw_frames_ctx = av_hwframe_ctx_alloc(hw_device_ctx);
             if (!hw_frames_ctx) {
                 std::cout << "av_hwframe_ctx_alloc fail" << std::endl;
@@ -1058,11 +1058,11 @@ bool Media::MainCallback()
             }
 
             AVHWFramesContext* frames_ctx = (AVHWFramesContext*)hw_frames_ctx->data;
-            frames_ctx->format = AV_PIX_FMT_CUDA;          // ±ØĞëÓë enc_ctx->pix_fmt Ò»ÖÂ
-            frames_ctx->sw_format = AV_PIX_FMT_NV12;       // GPU ¸ßĞ§¸ñÊ½
+            frames_ctx->format = AV_PIX_FMT_CUDA;          // å¿…é¡»ä¸ enc_ctx->pix_fmt ä¸€è‡´
+            frames_ctx->sw_format = AV_PIX_FMT_NV12;       // GPU é«˜æ•ˆæ ¼å¼
             frames_ctx->width = video_dec_ctx->width;
             frames_ctx->height = video_dec_ctx->height;
-            frames_ctx->initial_pool_size = 10;            // Ô¤·ÖÅäÖ¡»º³åÇøÊıÁ¿
+            frames_ctx->initial_pool_size = 10;            // é¢„åˆ†é…å¸§ç¼“å†²åŒºæ•°é‡
 
             if (av_hwframe_ctx_init(hw_frames_ctx) < 0) {
                 av_buffer_unref(&hw_frames_ctx);
@@ -1071,7 +1071,7 @@ bool Media::MainCallback()
                 return false;
             }
 
-            // °ó¶¨Ó²¼şÖ¡ÉÏÏÂÎÄµ½±àÂëÆ÷
+            // ç»‘å®šç¡¬ä»¶å¸§ä¸Šä¸‹æ–‡åˆ°ç¼–ç å™¨
             video_enc_ctx->hw_frames_ctx = av_buffer_ref(hw_frames_ctx);
             if (!video_enc_ctx->hw_frames_ctx) {
                 av_buffer_unref(&hw_frames_ctx);
@@ -1082,12 +1082,12 @@ bool Media::MainCallback()
         }
         */
 
-        // ÊÓÆµ±àÂëÆ÷²ÎÊı
+        // è§†é¢‘ç¼–ç å™¨å‚æ•°
         //av_opt_set(video_enc_ctx->priv_data, "sync-lookahead", "0", 0);
         //av_opt_set(video_enc_ctx->priv_data, "rc-lookahead", "0", 0);
-        //tuneÓ°Ïì½âÂë±àÂëÖÊÁ¿£¬Èç¹û·¢ÏÖ±àÂëËÙ¶ÈÂı£¬¿¨¶Ù£¬¾ÍÉèÖÃÎªzerolatency
-        av_opt_set(video_enc_ctx->priv_data, "tune", "fastdecode", 0); //film/animation/grain/stillimage/psnr ºÍ ssim/fastdecode/zerolatency
-        //presetÓ°Ïì½âÂë±àÂëËÙ¶È£¬Èçultrafast¿ÉÄÜ»á¶ªÖ¡£¬Èç¹û·¢ÏÖ³öÏÖ¶ªÖ¡£¬¾Í°ÑËÙ¶Èµ÷Âı
+        //tuneå½±å“è§£ç ç¼–ç è´¨é‡ï¼Œå¦‚æœå‘ç°ç¼–ç é€Ÿåº¦æ…¢ï¼Œå¡é¡¿ï¼Œå°±è®¾ç½®ä¸ºzerolatency
+        av_opt_set(video_enc_ctx->priv_data, "tune", "fastdecode", 0); //film/animation/grain/stillimage/psnr å’Œ ssim/fastdecode/zerolatency
+        //presetå½±å“è§£ç ç¼–ç é€Ÿåº¦ï¼Œå¦‚ultrafastå¯èƒ½ä¼šä¸¢å¸§ï¼Œå¦‚æœå‘ç°å‡ºç°ä¸¢å¸§ï¼Œå°±æŠŠé€Ÿåº¦è°ƒæ…¢
         av_opt_set(video_enc_ctx->priv_data, "preset", "fast", 0); //ultrafast/superfast/veryfast/faster/fast/medium/slow/slower/veryslow
         //av_opt_set(video_enc_ctx->priv_data, "crf", "23", 0);
         //av_opt_set(video_enc_ctx->priv_data, "bufsize", "2M", 0);
@@ -1100,15 +1100,15 @@ bool Media::MainCallback()
         //av_opt_set(video_enc_ctx->priv_data, "copyts", "", 0);
         //av_opt_set(video_enc_ctx->priv_data, "muxdelay", "0", 0);
 
-        //ÏÂÃæÊÇcudaÉèÖÃ
-        //av_opt_set(video_enc_ctx->priv_data, "preset", "llhp", 0);      // µÍÑÓ³Ù¸ßÖÊÁ¿Ô¤Éè
-        //av_opt_set(video_enc_ctx->priv_data, "tune", "ull", 0);        // ³¬µÍÑÓ³ÙÄ£Ê½
-        //av_opt_set(video_enc_ctx->priv_data, "rc", "vbr", 0);    // ÂëÂÊÄ£Ê½
+        //ä¸‹é¢æ˜¯cudaè®¾ç½®
+        //av_opt_set(video_enc_ctx->priv_data, "preset", "llhp", 0);      // ä½å»¶è¿Ÿé«˜è´¨é‡é¢„è®¾
+        //av_opt_set(video_enc_ctx->priv_data, "tune", "ull", 0);        // è¶…ä½å»¶è¿Ÿæ¨¡å¼
+        //av_opt_set(video_enc_ctx->priv_data, "rc", "vbr", 0);    // ç ç‡æ¨¡å¼
 
-        //NVENC ²ÎÊı	ÓĞĞ§Öµ	ËµÃ÷
-        //preset	llhp, hq, bd, lossless	±àÂëÖÊÁ¿ / ËÙ¶ÈÔ¤Éè
-        //tune	ull, hq, ll	ÑÓ³ÙÓÅ»¯·½Ïò
-        //rc(ÂëÂÊ¿ØÖÆ)	cbr, vbr, cbr_ld_hq	ÂëÂÊ¿ØÖÆÄ£Ê½
+        //NVENC å‚æ•°	æœ‰æ•ˆå€¼	è¯´æ˜
+        //preset	llhp, hq, bd, lossless	ç¼–ç è´¨é‡ / é€Ÿåº¦é¢„è®¾
+        //tune	ull, hq, ll	å»¶è¿Ÿä¼˜åŒ–æ–¹å‘
+        //rc(ç ç‡æ§åˆ¶)	cbr, vbr, cbr_ld_hq	ç ç‡æ§åˆ¶æ¨¡å¼
 
 
         video_enc_ctx->max_b_frames = 0;
@@ -1148,7 +1148,7 @@ bool Media::MainCallback()
         }
 
     }
-    // ÅäÖÃÒôÆµÁ÷£¨ÀàËÆÊÓÆµ£¬Ğè´¦ÀíÖØ²ÉÑù£©
+    // é…ç½®éŸ³é¢‘æµï¼ˆç±»ä¼¼è§†é¢‘ï¼Œéœ€å¤„ç†é‡é‡‡æ ·ï¼‰
     if (audio_idx >= 0) {
         AVStream* in_stream = input_fmt_ctx->streams[audio_idx];
         const AVCodec* dec = avcodec_find_decoder(in_stream->codecpar->codec_id);
@@ -1193,22 +1193,22 @@ bool Media::MainCallback()
             return false;
         }
 
-        // ÉèÖÃÒôÆµ±àÂë²ÎÊı£¨ĞÂAPI·½Ê½£©
+        // è®¾ç½®éŸ³é¢‘ç¼–ç å‚æ•°ï¼ˆæ–°APIæ–¹å¼ï¼‰
         audio_enc_ctx->sample_rate = 48000;
-        audio_enc_ctx->sample_fmt = enc->sample_fmts[0]; // Ñ¡ÔñµÚÒ»¸öÖ§³ÖµÄ¸ñÊ½
+        audio_enc_ctx->sample_fmt = enc->sample_fmts[0]; // é€‰æ‹©ç¬¬ä¸€ä¸ªæ”¯æŒçš„æ ¼å¼
 
-        // Ê¹ÓÃĞÂµÄÍ¨µÀ²¼¾ÖÏµÍ³
+        // ä½¿ç”¨æ–°çš„é€šé“å¸ƒå±€ç³»ç»Ÿ
         AVChannelLayout stereo_layout;
-        av_channel_layout_default(&stereo_layout, 2); // Á¢ÌåÉù
+        av_channel_layout_default(&stereo_layout, 2); // ç«‹ä½“å£°
         //av_channel_layout_copy(&audio_enc_ctx->ch_layout, &stereo_layout);
-        av_channel_layout_default(&audio_enc_ctx->ch_layout, 2); // Á¢ÌåÉù
+        av_channel_layout_default(&audio_enc_ctx->ch_layout, 2); // ç«‹ä½“å£°
 
         //audio_enc_ctx->bit_rate = 128000;
         audio_enc_ctx->bit_rate = 160000;
         audio_enc_ctx->time_base = { 1, audio_enc_ctx->sample_rate };
 
         //av_opt_set(audio_enc_ctx->priv_data, "aac_coder", "fast", 0);
-        //audio_enc_ctx->frame_size = 1024; // AACÃ¿Ö¡1024Ñù±¾
+        //audio_enc_ctx->frame_size = 1024; // AACæ¯å¸§1024æ ·æœ¬
         //audio_enc_ctx->has_b_frames = 0;
 
         if (avcodec_open2(audio_enc_ctx, enc, NULL) != 0) {
@@ -1222,7 +1222,7 @@ bool Media::MainCallback()
         out_stream->time_base = audio_enc_ctx->time_base;
 
 
-        // ³õÊ¼»¯ÒôÆµÖØ²ÉÑùÆ÷£¨ĞÂAPI£©
+        // åˆå§‹åŒ–éŸ³é¢‘é‡é‡‡æ ·å™¨ï¼ˆæ–°APIï¼‰
         swr_ctx = swr_alloc();
         if (nullptr == swr_ctx)
         {
@@ -1231,10 +1231,10 @@ bool Media::MainCallback()
             return false;
         }
         if (0 != swr_alloc_set_opts2(&swr_ctx,
-            &audio_enc_ctx->ch_layout, // Êä³ö²¼¾Ö
+            &audio_enc_ctx->ch_layout, // è¾“å‡ºå¸ƒå±€
             audio_enc_ctx->sample_fmt,
             audio_enc_ctx->sample_rate,
-            &audio_dec_ctx->ch_layout, // ÊäÈë²¼¾Ö
+            &audio_dec_ctx->ch_layout, // è¾“å…¥å¸ƒå±€
             audio_dec_ctx->sample_fmt,
             audio_dec_ctx->sample_rate,
             0, NULL))
@@ -1245,7 +1245,7 @@ bool Media::MainCallback()
         }
         swr_init(swr_ctx);
     }
-    // Ğ´ÈëÊä³öÍ·²¿
+    // å†™å…¥è¾“å‡ºå¤´éƒ¨
     avformat_write_header(output_ctx, NULL);
 
     AVPacket* encoded_packet = av_packet_alloc();
@@ -1256,7 +1256,7 @@ bool Media::MainCallback()
         return false;
     }
     stop_flag = false;
-    //Æô¶¯½âÂë±àÂëÏß³Ì
+    //å¯åŠ¨è§£ç ç¼–ç çº¿ç¨‹
     video_decode_thread = std::thread(Media::VideoDecodeThread, this);
     audio_decode_thread = std::thread(Media::AudioDecodeThread, this);
     video_encode_thread = std::thread(Media::VideoEncodeThread, this);
@@ -1265,13 +1265,13 @@ bool Media::MainCallback()
     av_seek_frame(input_fmt_ctx, -1, seek_target_, AVSEEK_FLAG_BACKWARD);
 
     while (!stop_flag) {
-        //´¦ÀíseekÇëÇó
+        //å¤„ç†seekè¯·æ±‚
         if (seek_requested_)
         {
             av_seek_frame(input_fmt_ctx, 1, seek_target_, AVSEEK_FLAG_BACKWARD);
             stop_flag = true;
             std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(1)));
-            //ÖØÆô±àÂë½âÂëÏß³Ì
+            //é‡å¯ç¼–ç è§£ç çº¿ç¨‹
             if (video_decode_thread.joinable())
             {
                 video_packet_queue_cv.notify_all();
@@ -1292,7 +1292,7 @@ bool Media::MainCallback()
                 audio_frame_queue_cv.notify_all();
                 audio_encode_thread.join();
             }
-            // Çå¿ÕËùÓĞ»º³åÇø
+            // æ¸…ç©ºæ‰€æœ‰ç¼“å†²åŒº
             avcodec_flush_buffers(video_dec_ctx);
             avcodec_flush_buffers(video_enc_ctx);
             avcodec_flush_buffers(audio_dec_ctx);
@@ -1317,7 +1317,7 @@ bool Media::MainCallback()
         session.run_status.audio_clock = audio_clock;
         session.run_status.video_clock = video_clock;
         bool pause = false;
-        //¼ì²é¶ÓÁĞ£¬Èç¹û¶ÓÁĞÊı¾İÌ«¶à£¬ÔİÍ£½âÂë
+        //æ£€æŸ¥é˜Ÿåˆ—ï¼Œå¦‚æœé˜Ÿåˆ—æ•°æ®å¤ªå¤šï¼Œæš‚åœè§£ç 
         {
             std::lock_guard<std::mutex> lock(video_packet_queue_mutex);
             if (video_packet_queue.size() >= MAX_QUEUE_SIZE)
@@ -1356,7 +1356,7 @@ bool Media::MainCallback()
             }
             else
             {
-                // ´¦ÀíÎÄ¼ş½áÊø»ò´íÎó
+                // å¤„ç†æ–‡ä»¶ç»“æŸæˆ–é”™è¯¯
                 std::cout << "av_read_frame fail" << std::endl;
             }
         }
@@ -1396,9 +1396,9 @@ bool Media::MainCallback()
             std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(1)));
         }
     }
-    // ÊÕÎ²¹¤×÷
+    // æ”¶å°¾å·¥ä½œ
     av_write_trailer(output_ctx);
-    //µÈ´ı±àÂë½âÂëÏß³Ì½áÊø
+    //ç­‰å¾…ç¼–ç è§£ç çº¿ç¨‹ç»“æŸ
     if (video_decode_thread.joinable())
     {
         video_decode_thread.join();
@@ -1425,7 +1425,7 @@ bool Media::MainPipeThread(Media* This)
     return This->MainPipeCallback();
 }
 
-// µİ¹éÖÕÖ¹×Ó½ø³Ì£¨Ê¹ÓÃ½ø³Ì¿ìÕÕ·½Ê½£©
+// é€’å½’ç»ˆæ­¢å­è¿›ç¨‹ï¼ˆä½¿ç”¨è¿›ç¨‹å¿«ç…§æ–¹å¼ï¼‰
 void TerminateChildProcesses(DWORD parentPid) {
     PROCESSENTRY32 pe = { sizeof(PROCESSENTRY32) };
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -1440,40 +1440,40 @@ void TerminateChildProcesses(DWORD parentPid) {
                     TerminateProcess(hChild, 1);
                     CloseHandle(hChild);
                 }
-                TerminateChildProcesses(pe.th32ProcessID); // µİ¹éÖÕÖ¹
+                TerminateChildProcesses(pe.th32ProcessID); // é€’å½’ç»ˆæ­¢
             }
         } while (Process32Next(hSnapshot, &pe));
     }
     CloseHandle(hSnapshot);
 }
 
-// ÓÅÑÅÖÕÖ¹³¢ÊÔ
-// ¿ØÖÆÌ¨×´Ì¬±£´æ½á¹¹Ìå
+// ä¼˜é›…ç»ˆæ­¢å°è¯•
+// æ§åˆ¶å°çŠ¶æ€ä¿å­˜ç»“æ„ä½“
 struct ConsoleContext {
     int origStdOut = -1;
     int origStdErr = -1;
     bool attached = false;
 };
 
-// ¿ªÊ¼¸½¼Óµ½Ä¿±ê¿ØÖÆÌ¨
+// å¼€å§‹é™„åŠ åˆ°ç›®æ ‡æ§åˆ¶å°
 ConsoleContext BeginAttach(DWORD dwProcessId) {
     ConsoleContext ctx;
 
-    // ±£´æÔ­Ê¼±ê×¼Á÷ÃèÊö·û
+    // ä¿å­˜åŸå§‹æ ‡å‡†æµæè¿°ç¬¦
     ctx.origStdOut = _dup(_fileno(stdout));
     ctx.origStdErr = _dup(_fileno(stderr));
 
-    // ·ÖÀëµ±Ç°¿ØÖÆÌ¨
+    // åˆ†ç¦»å½“å‰æ§åˆ¶å°
     if (!FreeConsole()) {
         std::cerr << "FreeConsole failed: " << GetLastError() << "\n";
         return ctx;
     }
 
-    // ¸½¼Óµ½Ä¿±ê¿ØÖÆÌ¨
+    // é™„åŠ åˆ°ç›®æ ‡æ§åˆ¶å°
     if (AttachConsole(dwProcessId)) {
         ctx.attached = true;
 
-        // Ê¹ÓÃ°²È«·½Ê½ÖØĞÂ´ò¿ª±ê×¼Á÷
+        // ä½¿ç”¨å®‰å…¨æ–¹å¼é‡æ–°æ‰“å¼€æ ‡å‡†æµ
         FILE* newStdOut = nullptr;
         FILE* newStdErr = nullptr;
 
@@ -1484,32 +1484,32 @@ ConsoleContext BeginAttach(DWORD dwProcessId) {
             std::cerr << "Failed to redirect stderr\n";
         }
 
-        // È·±£»º³åÇøÁ¢¼´Ë¢ĞÂ
+        // ç¡®ä¿ç¼“å†²åŒºç«‹å³åˆ·æ–°
         setvbuf(stdout, nullptr, _IONBF, 0);
         setvbuf(stderr, nullptr, _IONBF, 0);
     }
     else {
         std::cerr << "AttachConsole failed: " << GetLastError() << "\n";
-        // Ê§°ÜÊ±³¢ÊÔ»Ö¸´Ô­Ê¼¿ØÖÆÌ¨
+        // å¤±è´¥æ—¶å°è¯•æ¢å¤åŸå§‹æ§åˆ¶å°
         AttachConsole(ATTACH_PARENT_PROCESS);
     }
 
     return ctx;
 }
 
-// »Ö¸´Ô­Ê¼¿ØÖÆÌ¨×´Ì¬
+// æ¢å¤åŸå§‹æ§åˆ¶å°çŠ¶æ€
 void EndAttach(ConsoleContext& ctx) {
     if (!ctx.attached) return;
 
-    // ÊÍ·ÅÄ¿±ê¿ØÖÆÌ¨
+    // é‡Šæ”¾ç›®æ ‡æ§åˆ¶å°
     FreeConsole();
 
-    // ÖØĞÂ¸½¼Óµ½Ô­Ê¼¿ØÖÆÌ¨
+    // é‡æ–°é™„åŠ åˆ°åŸå§‹æ§åˆ¶å°
     if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
         std::cerr << "Re-attach failed: " << GetLastError() << "\n";
     }
 
-    // »Ö¸´±ê×¼Êä³öÁ÷
+    // æ¢å¤æ ‡å‡†è¾“å‡ºæµ
     if (ctx.origStdOut != -1) {
         if (_dup2(ctx.origStdOut, _fileno(stdout)) != 0) {
             std::cerr << "Failed to restore stdout: " << GetLastError() << "\n";
@@ -1517,7 +1517,7 @@ void EndAttach(ConsoleContext& ctx) {
         _close(ctx.origStdOut);
     }
 
-    // »Ö¸´±ê×¼´íÎóÁ÷
+    // æ¢å¤æ ‡å‡†é”™è¯¯æµ
     if (ctx.origStdErr != -1) {
         if (_dup2(ctx.origStdErr, _fileno(stderr)) != 0) {
             std::cerr << "Failed to restore stderr: " << GetLastError() << "\n";
@@ -1525,7 +1525,7 @@ void EndAttach(ConsoleContext& ctx) {
         _close(ctx.origStdErr);
     }
 
-    // ÏÔÊ½ÖØĞÂ´ò¿ª¿ØÖÆÌ¨Á÷
+    // æ˜¾å¼é‡æ–°æ‰“å¼€æ§åˆ¶å°æµ
     FILE* dummy = nullptr;
     if (freopen_s(&dummy, "CONOUT$", "w", stdout) != 0) {
         std::cerr << "Failed to reopen stdout\n";
@@ -1534,12 +1534,12 @@ void EndAttach(ConsoleContext& ctx) {
         std::cerr << "Failed to reopen stderr\n";
     }
 
-    // Ë¢ĞÂËùÓĞ»º³åÇø
+    // åˆ·æ–°æ‰€æœ‰ç¼“å†²åŒº
     fflush(stdout);
     fflush(stderr);
 }
 
-// Ê¹ÓÃÊ¾Àı
+// ä½¿ç”¨ç¤ºä¾‹
 bool SendCtrlC(DWORD pid) {
     ConsoleContext ctx = BeginAttach(pid);
     bool success = false;
@@ -1547,7 +1547,7 @@ bool SendCtrlC(DWORD pid) {
     if (ctx.attached) {
         if (SetConsoleCtrlHandler(nullptr, true)) {
             success = GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
-            Sleep(300); // µÈ´ıĞÅºÅ´¦Àí
+            Sleep(300); // ç­‰å¾…ä¿¡å·å¤„ç†
             SetConsoleCtrlHandler(nullptr, false);
         }
     }
@@ -1556,12 +1556,12 @@ bool SendCtrlC(DWORD pid) {
     return success;
 }
 
-// Ö÷ÖÕÖ¹º¯Êı£¨Ö±½ÓÊ¹ÓÃCreateProcess·µ»ØµÄ¾ä±ú£©
+// ä¸»ç»ˆæ­¢å‡½æ•°ï¼ˆç›´æ¥ä½¿ç”¨CreateProcessè¿”å›çš„å¥æŸ„ï¼‰
 void TerminateProcessTree(PROCESS_INFORMATION& pi) {
     const DWORD waitTimeout = 200;
     const int maxAttempts = 3;
 
-    // µÚÒ»½×¶Î£ºÓÅÑÅÖÕÖ¹
+    // ç¬¬ä¸€é˜¶æ®µï¼šä¼˜é›…ç»ˆæ­¢
     /*
     if (SendCtrlC(pi.dwProcessId)) {
         if (WaitForSingleObject(pi.hProcess, waitTimeout) == WAIT_OBJECT_0) {
@@ -1569,21 +1569,21 @@ void TerminateProcessTree(PROCESS_INFORMATION& pi) {
         }
     }
     */
-    // µÚ¶ş½×¶Î£ºÖÕÖ¹×Ó½ø³ÌºóÖØÊÔ
+    // ç¬¬äºŒé˜¶æ®µï¼šç»ˆæ­¢å­è¿›ç¨‹åé‡è¯•
     TerminateChildProcesses(pi.dwProcessId);
     TerminateProcess(pi.hProcess, 1);
     if (WaitForSingleObject(pi.hProcess, waitTimeout) == WAIT_OBJECT_0) {
         goto cleanup;
     }
 
-    // µÚÈı½×¶Î£ºÇ¿ÖÆÖÕÖ¹
+    // ç¬¬ä¸‰é˜¶æ®µï¼šå¼ºåˆ¶ç»ˆæ­¢
     for (int i = 0; i < maxAttempts; ++i) {
         TerminateProcess(pi.hProcess, 1);
         if (WaitForSingleObject(pi.hProcess, 50) == WAIT_OBJECT_0) break;
     }
 
 cleanup:
-    // È·±£¹Ø±ÕÔ­Ê¼¾ä±ú
+    // ç¡®ä¿å…³é—­åŸå§‹å¥æŸ„
     CloseHandle(pi.hProcess);
     //CloseHandle(pi.hThread);
     pi.hProcess = pi.hThread = nullptr;
@@ -1601,8 +1601,8 @@ std::string vfencode(std::string in)
 {
     std::string enc = in;
     replace_all(enc, "\\", "\\\\");
-    //µ¥ÒıºÅ
-    replace_all(enc, "'", "\\'");
+    //å•å¼•å·
+    replace_all(enc, "'", "'\\\\\\''");
     //%
     replace_all(enc, "%", "%%");
     //,
@@ -1643,11 +1643,11 @@ bool Media::MainPipeCallback()
             //fps_format = "-vf \"fps=30\"";
         }
         std::string subtitles = "";
-        // 1. ÌáÈ¡¸¸Ä¿Â¼ºÍÎÄ¼şÃûÖ÷¸É 
+        // 1. æå–çˆ¶ç›®å½•å’Œæ–‡ä»¶åä¸»å¹² 
         fs::path parentDir = filePath.parent_path();
-        std::string stem = filePath.stem().string();   // ²»º¬À©Õ¹Ãû
+        std::string stem = filePath.stem().string();   // ä¸å«æ‰©å±•å
 
-        // 2. ¹¹½¨ĞÂÂ·¾¶
+        // 2. æ„å»ºæ–°è·¯å¾„
         fs::path srtfile = parentDir / (stem + ".srt");
         if (fs::exists(srtfile))
         {
@@ -1662,6 +1662,16 @@ bool Media::MainPipeCallback()
             }
         }
 
+        fs::path supfile = parentDir / (stem + ".sup");
+        bool hassup = false;
+        std::string suppath = "";
+        if (fs::exists(supfile))
+        {
+            hassup = true;
+            suppath = UTF8ToGB2312(supfile.u8string());
+            std::replace(suppath.begin(), suppath.end(), '\\', '/');
+        }
+
         int subidx = GetSubIndex(path_file, SUB_TS);
         std::string sub = "0:s:m:language:chi?";
         if (subidx > -1)
@@ -1669,7 +1679,7 @@ bool Media::MainPipeCallback()
             sub = "0:s:" + std::to_string(subidx);
         }
 
-        // ¹¹½¨ ffmpeg ÃüÁî
+        // æ„å»º ffmpeg å‘½ä»¤
         std::string ffmpegCommand = "";
         std::string fps_trans = "";
         if (fps > 30)
@@ -1681,32 +1691,95 @@ bool Media::MainPipeCallback()
             return std::tolower(c);
             });
 
-        if (ffmpeg_error || ext == ".webm" || ext == ".flv")
+        if (ffmpeg_error || ext == ".webm" || ext == ".flv" || ext == ".avi")
         {
-            if (subtitles == "")
+            if (!hassup)
             {
-                subtitles = "null";
+                if (subtitles == "")
+                {
+                    subtitles = "format=yuv420p";
+                }
+                else if (subtitles[0] == ',')
+                {
+                    subtitles = subtitles.substr(1);
+                }
+                //è½¯è§£
+                ffmpegCommand = "ffmpeg -loglevel quiet -threads 24 -thread_type frame  -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -filter_complex \"[0:v]" + subtitles + "[v]\" -map \"[v]\" -map 0:a:0 -map " + sub + " -c:s copy -c:v libx264 -preset faster -tune fastdecode -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k " + fps_trans + " -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+                //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+                //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + "  -vf \"hwdownload,format=nv12\" -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
             }
-            else if (subtitles[0] == ',')
+            else
             {
-                subtitles = subtitles.substr(1);
+                // è®¡ç®—è·³è½¬çš„ç§’æ•°ï¼Œä½¿ç”¨ double ä¿ç•™å°æ•°ç²¾åº¦
+                int64_t seek_sec = seek_target_ / AV_TIME_BASE;
+
+                // å‡è®¾ suppath æ˜¯ä½ çš„ .sup æ–‡ä»¶çš„å®Œæ•´è·¯å¾„
+                ffmpegCommand = "ffmpeg -loglevel quiet -threads 24 -thread_type frame  -ss " + std::to_string(seek_sec)
+                    + " -i \"" + pathgb2312 + "\" "                   // è¾“å…¥ 0: è§†é¢‘æ–‡ä»¶
+                    + " -i \"" + suppath + "\" "                      // è¾“å…¥ 1: SUP å­—å¹•æ–‡ä»¶
+                    + fps_format
+                    // ğŸš¨ æ ¸å¿ƒä¿®æ”¹ï¼šåœ¨ overlay ä¹‹å‰ï¼Œç”¨ setpts ç»™ SUP å­—å¹•åŠ ä¸Šè·³è½¬çš„åç§»é‡
+                    + " -filter_complex \"[1:s]setpts=PTS+" + std::to_string(seek_sec) + "/TB[sub];[0:v][sub]overlay[v]\" "
+                    + " -map \"[v]\" -map 0:a:0 "                     // æ˜ å°„å¤„ç†åçš„è§†é¢‘å’ŒåŸéŸ³é¢‘
+                    + " -c:v libx264 -preset faster -tune fastdecode -maxrate 10M -b:v 10M "
+                    + " -c:a aac -ac 2 -b:a 160k " + fps_trans
+                    + " -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
             }
-            //Èí½â
-            ffmpegCommand = "ffmpeg -loglevel quiet -threads 24 -thread_type frame  -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -filter_complex \"[0:v]" + subtitles + "[v]\" -map \"[v]\" -map 0:a:0 -map " + sub + " -c:s copy -c:v libx264 -preset faster -tune fastdecode -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k " + fps_trans + " -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-            //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + " -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-            //std::string ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" " + fps_format + "  -vf \"hwdownload,format=nv12\" -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
         }
         else
         {
-            //Ó²½â
-            ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -hwaccel_output_format cuda -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -filter_complex \"[0:v]hwdownload,format=nv12,setpts=PTS-STARTPTS" + subtitles + "[v]\" -map \"[v]\" -map 0:a:0 -map " + sub + " -c:s copy -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k " + fps_trans + " -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-            //ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -hwaccel_output_format cuda -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -map 0:v:0 -map 0:a:0 -vf \"hwdownload,format=nv12,subtitles='" + vfencode(pathgb2312) +  "'\" -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-            //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-            //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a copy -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
-            //½â¾öyuv420p10leÎÊÌâ(H265 hevc_nvenc)
-            if (pixel_format == AV_PIX_FMT_YUV420P10LE)
+            if (!hassup)
             {
-                ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -filter_complex \"[0:v]hwdownload,format=p010le,setpts=PTS-STARTPTS" + subtitles + "[v]\" -map \"[v]\" -map 0:a:0 " + fps_format + " -map " + sub + " -c:s copy -c:v hevc_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k " + fps_trans + " -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+                //ç¡¬è§£
+                //ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -hwaccel_output_format cuda -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -map 0:v:0 -map 0:a:0 -vf \"hwdownload,format=nv12,subtitles='" + vfencode(pathgb2312) +  "'\" -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+                //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a aac -ac 2 -b:a 160k -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+                //std::string ffmpegCommand = "ffmpeg -loglevel quiet -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -c:v copy -c:a copy -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+                //è§£å†³yuv420p10leé—®é¢˜(H265 hevc_nvenc)
+                if (pixel_format == AV_PIX_FMT_YUV420P10LE)
+                {
+                    ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -filter_complex \"[0:v]hwdownload,format=p010le,setpts=PTS-STARTPTS" + subtitles + "[v]\" -map \"[v]\" -map 0:a:0 " + fps_format + " -map " + sub + " -c:s copy -c:v hevc_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k " + fps_trans + " -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+                }
+                else
+                {
+                    ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -hwaccel_output_format cuda -ss " + std::to_string(seek_target_ / AV_TIME_BASE) + " -i \"" + pathgb2312 + "\" -filter_complex \"[0:v]hwdownload,format=nv12,setpts=PTS-STARTPTS" + subtitles + "[v]\" -map \"[v]\" -map 0:a:0 -map " + sub + " -c:s copy -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k " + fps_trans + " -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+                }
+            }
+            else
+            {
+                if (pixel_format == AV_PIX_FMT_YUV420P10LE)
+                {
+                    // è®¡ç®—è·³è½¬çš„ç§’æ•°ï¼Œä½¿ç”¨ double ä¿ç•™å°æ•°ç²¾åº¦
+                    int64_t seek_sec = seek_target_ / AV_TIME_BASE;
+
+                    // 2. æ„å»º FFmpeg å‘½ä»¤ (10ä½ HEVC ç¡¬è§£è½¬ 8ä½ H264 è½¯ç¼– + SUP çƒ§å½•)
+                    // å‡è®¾ suppath æ˜¯ä½ çš„ .sup å­—å¹•æ–‡ä»¶çš„å®Œæ•´è·¯å¾„
+                    ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -ss " + std::to_string(seek_sec)
+                        + " -i \"" + pathgb2312 + "\" "                   // è¾“å…¥ 0: è§†é¢‘æ–‡ä»¶
+                        + " -i \"" + suppath + "\" "                      // è¾“å…¥ 1: SUP å­—å¹•æ–‡ä»¶
+                        + fps_format
+                        // ğŸš¨ æ ¸å¿ƒæ»¤é•œï¼šç¡¬è§£ä¸‹è½½ -> è½¬10ä½ -> è½¬8ä½ -> å¯¹é½æ—¶é—´æˆ³ï¼›å­—å¹•è½¬yuva420p -> åŠ åç§»ï¼›æœ€åå åŠ 
+                        + " -filter_complex \"[0:v]hwdownload,format=p010le,format=yuv420p,setpts=PTS-STARTPTS[vid];[1:s]format=yuva420p,setpts=PTS-STARTPTS+" + std::to_string(seek_sec) + "/TB[sub];[vid][sub]overlay[v]\" "
+                        + " -map \"[v]\" -map 0:a:0 "                     // æ˜ å°„å¤„ç†åçš„è§†é¢‘å’ŒåŸéŸ³é¢‘
+                        + " -c:v libx264 -preset faster -tune fastdecode -maxrate 10M -b:v 10M "
+                        + " -c:a aac -ac 2 -b:a 160k " + fps_trans
+                        + " -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+                }
+                else
+                {
+                    // 1. è®¡ç®—è·³è½¬çš„ç§’æ•°ï¼Œä½¿ç”¨ double ä¿ç•™å°æ•°ç²¾åº¦
+                    int64_t seek_sec = seek_target_ / AV_TIME_BASE;
+
+                    // 2. 8ä½ H264 ç¡¬è§£ç¡¬ç¼– + SUP çƒ§å½•
+                    ffmpegCommand = "ffmpeg -loglevel quiet -threads 8 -thread_type frame -hwaccel cuvid -hwaccel_output_format cuda -ss "
+                        + std::to_string(seek_sec)
+                        + " -i \"" + pathgb2312 + "\" "
+                        + " -i \"" + suppath + "\" " // è¾“å…¥1: SUPå­—å¹•
+                        // ğŸš¨ æ ¸å¿ƒä¿®æ”¹ï¼šç»Ÿä¸€è½¬ yuv420p å’Œ yuva420pï¼Œå¹¶ä¸¥æ ¼å¯¹é½æ—¶é—´æˆ³
+                        + " -filter_complex \"[0:v]hwdownload,format=nv12,format=yuv420p,setpts=PTS-STARTPTS[vid];[1:s]format=yuva420p,setpts=PTS-STARTPTS+" + std::to_string(seek_sec) + "/TB[sub];[vid][sub]overlay[v]\" "
+                        + " -map \"[v]\" -map 0:a:0 " + fps_format
+                        + " -c:v h264_nvenc -maxrate 10M -b:v 10M -c:a aac -ac 2 -b:a 160k " + fps_trans
+                        + " -f mpegts -flush_packets 0 -mpegts_flags resend_headers pipe:1";
+                }
             }
         }
         std::cout << ffmpegCommand << std::endl;
@@ -1714,13 +1787,13 @@ bool Media::MainPipeCallback()
         SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), NULL, TRUE };
         HANDLE hReadPipe, hWritePipe;
 
-        // ´´½¨Êı¾İ¹ÜµÀ
+        // åˆ›å»ºæ•°æ®ç®¡é“
         if (!CreatePipe(&hReadPipe, &hWritePipe, &sa, 0)) {
             std::cerr << "CreatePipe failed (" << GetLastError() << ")\n";
             return 1;
         }
 
-        // ´´½¨NULÉè±¸¾ä±úÓÃÓÚÖØ¶¨Ïòstderr
+        // åˆ›å»ºNULè®¾å¤‡å¥æŸ„ç”¨äºé‡å®šå‘stderr
         HANDLE hNull = CreateFile(
             "NUL",
             GENERIC_WRITE,
@@ -1737,23 +1810,23 @@ bool Media::MainPipeCallback()
             return 1;
         }
 
-        // ÅäÖÃ½ø³ÌÆô¶¯²ÎÊı
+        // é…ç½®è¿›ç¨‹å¯åŠ¨å‚æ•°
         STARTUPINFO si = { sizeof(STARTUPINFO) };
         si.dwFlags = STARTF_USESTDHANDLES;
-        si.hStdOutput = hWritePipe;    // Ã½ÌåÊı¾İÊä³öµ½¹ÜµÀ
-        si.hStdError = hNull;          // ÈÕÖ¾Êä³öµ½NULÉè±¸
+        si.hStdOutput = hWritePipe;    // åª’ä½“æ•°æ®è¾“å‡ºåˆ°ç®¡é“
+        si.hStdError = hNull;          // æ—¥å¿—è¾“å‡ºåˆ°NULè®¾å¤‡
         si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
 
         PROCESS_INFORMATION pi;
 
-        // ´´½¨FFmpeg½ø³Ì
+        // åˆ›å»ºFFmpegè¿›ç¨‹
         if (!CreateProcess(
             NULL,
             const_cast<LPSTR>(ffmpegCommand.c_str()),
             NULL,
             NULL,
-            TRUE,    // ¼Ì³Ğ¾ä±ú
-            CREATE_NO_WINDOW,  // ²»ÏÔÊ¾¿ØÖÆÌ¨´°¿Ú
+            TRUE,    // ç»§æ‰¿å¥æŸ„
+            CREATE_NO_WINDOW,  // ä¸æ˜¾ç¤ºæ§åˆ¶å°çª—å£
             NULL,
             NULL,
             &si,
@@ -1766,7 +1839,7 @@ bool Media::MainPipeCallback()
             return 1;
         }
 
-        // ¹Ø±Õ²»ÔÙÊ¹ÓÃµÄ¾ä±ú
+        // å…³é—­ä¸å†ä½¿ç”¨çš„å¥æŸ„
         CloseHandle(hWritePipe);
         CloseHandle(hNull);
         CloseHandle(pi.hThread);
@@ -1774,12 +1847,12 @@ bool Media::MainPipeCallback()
 
         BYTE buffer[4096];
         DWORD bytesRead;
-        std::vector<BYTE> tempBuffer;  // ÁÙÊ±»º³å
+        std::vector<BYTE> tempBuffer;  // ä¸´æ—¶ç¼“å†²
         stop_flag = false;
         time_t start_time = time(nullptr);
         while (!stop_flag) {
             bool pause = false;
-            //¼ì²é¶ÓÁĞ£¬Èç¹û¶ÓÁĞÊı¾İÌ«¶à£¬ÔİÍ£½âÂë
+            //æ£€æŸ¥é˜Ÿåˆ—ï¼Œå¦‚æœé˜Ÿåˆ—æ•°æ®å¤ªå¤šï¼Œæš‚åœè§£ç 
             {
                 std::lock_guard<std::mutex> lock(session.data_queues.mutex);
                 if (session.data_queues.ts_packets.size() >= MAX_QUEUE_SIZE)
@@ -1799,7 +1872,7 @@ bool Media::MainPipeCallback()
                 std::cerr << "ReadFile failed with error code: " << errorCode << std::endl;
                 switch (errorCode) {
                 case ERROR_BROKEN_PIPE:
-                    //ffmpegÃüÁî³ö´í
+                    //ffmpegå‘½ä»¤å‡ºé”™
                     if ((time(nullptr) - start_time) < 10)
                     {
                         ffmpeg_error = true;
@@ -1821,15 +1894,15 @@ bool Media::MainPipeCallback()
                 break;
             }
             if (bytesRead > 0) {
-                // ½«ĞÂÊı¾İ×·¼Óµ½ÁÙÊ±»º³å
+                // å°†æ–°æ•°æ®è¿½åŠ åˆ°ä¸´æ—¶ç¼“å†²
                 tempBuffer.insert(tempBuffer.end(), buffer, buffer + bytesRead);
-                // ·Ö¸îÍêÕûTS°ü
+                // åˆ†å‰²å®Œæ•´TSåŒ…
                 size_t packetCount = tempBuffer.size() / TS_PACKET_SIZE;
                 for (size_t i = 0; i < packetCount; ++i) {
                     auto start = tempBuffer.begin() + i * TS_PACKET_SIZE;
                     auto end = start + TS_PACKET_SIZE;
                     {
-                        // Ğ´Èë¶ÓÁĞ²Ù×÷
+                        // å†™å…¥é˜Ÿåˆ—æ“ä½œ
                         std::unique_lock<std::mutex> lock(session.data_queues.mutex);
                         session.data_queues.ts_packets.push(std::move(std::vector<uint8_t>(start, end)));
                         session.run_status.queue_count = session.data_queues.ts_packets.size();
@@ -1837,7 +1910,7 @@ bool Media::MainPipeCallback()
                     session.data_queues.cv.notify_all();
                 }
 
-                // ±£Áô²»ÍêÕûµÄÊı¾İ
+                // ä¿ç•™ä¸å®Œæ•´çš„æ•°æ®
                 size_t remaining = tempBuffer.size() % TS_PACKET_SIZE;
                 tempBuffer.assign(
                     tempBuffer.end() - remaining,
@@ -1849,7 +1922,7 @@ bool Media::MainPipeCallback()
         }
         std::cout << "stop:" << stop_flag << std::endl;
 
-        // ½ø³Ì½áÊøºó´¦ÀíÊ£ÓàÊı¾İ
+        // è¿›ç¨‹ç»“æŸåå¤„ç†å‰©ä½™æ•°æ®
         if (!tempBuffer.empty()) {
             std::cerr << "WARNING: Incomplete TS packet (" << tempBuffer.size() << " bytes)\n";
         }
@@ -1863,7 +1936,7 @@ bool Media::MainPipeCallback()
         else
         {
             std::cout << "taskkill " << pi.dwProcessId << std::endl;
-            // Ç¿ĞĞÖÕÖ¹½ø³Ì
+            // å¼ºè¡Œç»ˆæ­¢è¿›ç¨‹
             /*
             if (!TerminateProcess(pi.hProcess, 0)) {
                 std::cerr << "TerminateProcess failed: " << GetLastError() << std::endl;
@@ -1992,7 +2065,7 @@ static int write_queue(void* opaque, uint8_t* buf, int buf_size) {
     //std::unique_lock<std::mutex> lock(ctrl.mutex);
     //if (!ctrl.flushing) 
     {
-        // Ğ´Èë¶ÓÁĞ²Ù×÷
+        // å†™å…¥é˜Ÿåˆ—æ“ä½œ
         AVFormatContext* fmt_ctx = (AVFormatContext*)opaque;
         std::unique_lock<std::mutex> lock(g_queues.mutex);
         g_queues.ts_packets.push(std::move(std::vector<uint8_t>(buf, buf + buf_size)));
@@ -2001,7 +2074,7 @@ static int write_queue(void* opaque, uint8_t* buf, int buf_size) {
 
     if (buf_size == DEC_BUFF_SIZE)
     {
-        //»º³åÇøÂú£¬Ó¦¸ÃÔö¼Ó»º³åÇø
+        //ç¼“å†²åŒºæ»¡ï¼Œåº”è¯¥å¢åŠ ç¼“å†²åŒº
         //std::cout << "write_queue buf_size full" << std::endl;
     }
 
@@ -2011,23 +2084,23 @@ static int write_queue(void* opaque, uint8_t* buf, int buf_size) {
     //debugFile.write(reinterpret_cast<const char*>(buf), buf_size);
     //debugFile.flush();
 
-    //³ö´í·µ»Ø -1
+    //å‡ºé”™è¿”å› -1
     return buf_size;
 }
 
 
-// ½âÂëÏß³Ì
+// è§£ç çº¿ç¨‹
 void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
 
     ctx->exit_decode = false;
     AVFormatContext* input_ctx = fmt_ctx;
 
-    // ²éÕÒÊÓÆµºÍÒôÆµÁ÷
+    // æŸ¥æ‰¾è§†é¢‘å’ŒéŸ³é¢‘æµ
     int video_idx = av_find_best_stream(input_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
     int audio_idx = av_find_best_stream(input_ctx, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
 
     if (video_idx < 0 && audio_idx < 0) {
-        fprintf(stderr, "Î´ÕÒµ½ÒôÊÓÆµÁ÷\n");
+        fprintf(stderr, "æœªæ‰¾åˆ°éŸ³è§†é¢‘æµ\n");
     }
 
     ctx->video_idx = video_idx;
@@ -2035,13 +2108,13 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
 
     StreamContext video_sc = { 0 }, audio_sc = { 0 };
 
-    // ×¼±¸Êä³öÉÏÏÂÎÄ
+    // å‡†å¤‡è¾“å‡ºä¸Šä¸‹æ–‡
     AVFormatContext* output_ctx = NULL;
     avformat_alloc_output_context2(&output_ctx, NULL, "mpegts", NULL);
     AVIOContext* avio_ctx = avio_alloc_context((unsigned char*)av_malloc(DEC_BUFF_SIZE), DEC_BUFF_SIZE, 1, fmt_ctx, NULL, write_queue, NULL);
     output_ctx->pb = avio_ctx;
 
-    // ÅäÖÃÊÓÆµÁ÷
+    // é…ç½®è§†é¢‘æµ
     if (video_idx >= 0) {
         AVStream* in_stream = input_ctx->streams[video_idx];
 
@@ -2056,14 +2129,14 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
         video_sc.enc_ctx->width = video_sc.dec_ctx->width;
         video_sc.enc_ctx->sample_aspect_ratio = video_sc.dec_ctx->sample_aspect_ratio;
 
-        // ÉèÖÃÊÓÆµ±àÂëÆ÷µÄÏñËØ¸ñÊ½ÎªCUDAÖ§³ÖµÄ¸ñÊ½
+        // è®¾ç½®è§†é¢‘ç¼–ç å™¨çš„åƒç´ æ ¼å¼ä¸ºCUDAæ”¯æŒçš„æ ¼å¼
         //video_sc.enc_ctx->pix_fmt = AV_PIX_FMT_CUDA;
 
         video_sc.enc_ctx->pix_fmt = avcodec_find_best_pix_fmt_of_list(enc->pix_fmts, video_sc.dec_ctx->pix_fmt, 0, NULL);
         video_sc.enc_ctx->time_base = av_inv_q(av_d2q(30, 1000)); // 30fps
         av_opt_set(video_sc.enc_ctx->priv_data, "preset", "fast", 0);
 
-        // ÊÓÆµ±àÂëÆ÷²ÎÊı
+        // è§†é¢‘ç¼–ç å™¨å‚æ•°
         av_opt_set(video_sc.enc_ctx->priv_data, "tune", "zerolatency", 0);
         av_opt_set(video_sc.enc_ctx->priv_data, "sync-lookahead", "0", 0);
         av_opt_set(video_sc.enc_ctx->priv_data, "rc-lookahead", "0", 0);
@@ -2085,7 +2158,7 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
 
     }
 
-    // ÅäÖÃÒôÆµÁ÷£¨ÀàËÆÊÓÆµ£¬Ğè´¦ÀíÖØ²ÉÑù£©
+    // é…ç½®éŸ³é¢‘æµï¼ˆç±»ä¼¼è§†é¢‘ï¼Œéœ€å¤„ç†é‡é‡‡æ ·ï¼‰
     if (audio_idx >= 0) {
         AVStream* in_stream = input_ctx->streams[audio_idx];
         const AVCodec* dec = avcodec_find_decoder(in_stream->codecpar->codec_id);
@@ -2096,58 +2169,58 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
         const AVCodec* enc = avcodec_find_encoder(AV_CODEC_ID_AAC);
         audio_sc.enc_ctx = avcodec_alloc_context3(enc);
 
-        // ÉèÖÃÒôÆµ±àÂë²ÎÊı£¨ĞÂAPI·½Ê½£©
+        // è®¾ç½®éŸ³é¢‘ç¼–ç å‚æ•°ï¼ˆæ–°APIæ–¹å¼ï¼‰
         audio_sc.enc_ctx->sample_rate = 48000;
-        audio_sc.enc_ctx->sample_fmt = enc->sample_fmts[0]; // Ñ¡ÔñµÚÒ»¸öÖ§³ÖµÄ¸ñÊ½
+        audio_sc.enc_ctx->sample_fmt = enc->sample_fmts[0]; // é€‰æ‹©ç¬¬ä¸€ä¸ªæ”¯æŒçš„æ ¼å¼
 
-        // Ê¹ÓÃĞÂµÄÍ¨µÀ²¼¾ÖÏµÍ³
+        // ä½¿ç”¨æ–°çš„é€šé“å¸ƒå±€ç³»ç»Ÿ
         AVChannelLayout stereo_layout;
-        av_channel_layout_default(&stereo_layout, 2); // Á¢ÌåÉù
+        av_channel_layout_default(&stereo_layout, 2); // ç«‹ä½“å£°
         av_channel_layout_copy(&audio_sc.enc_ctx->ch_layout, &stereo_layout);
 
         audio_sc.enc_ctx->bit_rate = 128000;
         audio_sc.enc_ctx->time_base = { 1, audio_sc.enc_ctx->sample_rate };
 
         av_opt_set(audio_sc.enc_ctx->priv_data, "aac_coder", "fast", 0);
-        audio_sc.enc_ctx->frame_size = 1024; // AACÃ¿Ö¡1024Ñù±¾
+        audio_sc.enc_ctx->frame_size = 1024; // AACæ¯å¸§1024æ ·æœ¬
 
         if (avcodec_open2(audio_sc.enc_ctx, enc, NULL) < 0) {
-            fprintf(stderr, "ÎŞ·¨´ò¿ªÒôÆµ±àÂëÆ÷\n");
+            fprintf(stderr, "æ— æ³•æ‰“å¼€éŸ³é¢‘ç¼–ç å™¨\n");
         }
 
         AVStream* out_stream = avformat_new_stream(output_ctx, enc);
         avcodec_parameters_from_context(out_stream->codecpar, audio_sc.enc_ctx);
         out_stream->time_base = audio_sc.enc_ctx->time_base;
 
-        // ³õÊ¼»¯ÒôÆµÖØ²ÉÑùÆ÷£¨ĞÂAPI£©
+        // åˆå§‹åŒ–éŸ³é¢‘é‡é‡‡æ ·å™¨ï¼ˆæ–°APIï¼‰
         audio_sc.swr_ctx = swr_alloc();
         swr_alloc_set_opts2(&audio_sc.swr_ctx,
-            &audio_sc.enc_ctx->ch_layout, // Êä³ö²¼¾Ö
+            &audio_sc.enc_ctx->ch_layout, // è¾“å‡ºå¸ƒå±€
             audio_sc.enc_ctx->sample_fmt,
             audio_sc.enc_ctx->sample_rate,
-            &audio_sc.dec_ctx->ch_layout, // ÊäÈë²¼¾Ö
+            &audio_sc.dec_ctx->ch_layout, // è¾“å…¥å¸ƒå±€
             audio_sc.dec_ctx->sample_fmt,
             audio_sc.dec_ctx->sample_rate,
             0, NULL);
         swr_init(audio_sc.swr_ctx);
     }
 
-    const AVRational TS_TIME_BASE = { 1, 90000 }; // MPEG-TS±ê×¼Ê±¼ä»ù
+    const AVRational TS_TIME_BASE = { 1, 90000 }; // MPEG-TSæ ‡å‡†æ—¶é—´åŸº
 
-    // ÊÓÆµ±àÂëÆ÷ÉèÖÃ
+    // è§†é¢‘ç¼–ç å™¨è®¾ç½®
     video_sc.enc_ctx->time_base = TS_TIME_BASE;
-    video_sc.enc_ctx->framerate = { 30, 1 }; // Ã÷È·ÉèÖÃÖ¡ÂÊ
+    video_sc.enc_ctx->framerate = { 30, 1 }; // æ˜ç¡®è®¾ç½®å¸§ç‡
 
-    // ÒôÆµ±àÂëÆ÷ÉèÖÃ
-    audio_sc.enc_ctx->time_base = TS_TIME_BASE; // Í³Ò»Ê¹ÓÃÏàÍ¬Ê±¼ä»ù
+    // éŸ³é¢‘ç¼–ç å™¨è®¾ç½®
+    audio_sc.enc_ctx->time_base = TS_TIME_BASE; // ç»Ÿä¸€ä½¿ç”¨ç›¸åŒæ—¶é—´åŸº
     audio_sc.enc_ctx->sample_rate = 48000;
 
-    // Êä³öÁ÷ÉèÖÃ
+    // è¾“å‡ºæµè®¾ç½®
     output_ctx->streams[0]->time_base = TS_TIME_BASE;
     output_ctx->streams[1]->time_base = TS_TIME_BASE;
 
 
-    // Ğ´ÈëÊä³öÍ·²¿
+    // å†™å…¥è¾“å‡ºå¤´éƒ¨
     avformat_write_header(output_ctx, NULL);
 
     AVPacket* pkt = av_packet_alloc();
@@ -2198,11 +2271,11 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
 
         int ret = av_read_frame(input_ctx, pkt);
         if (ret < 0) {
-            // ´¦ÀíÎÄ¼ş½áÊø»ò´íÎó
+            // å¤„ç†æ–‡ä»¶ç»“æŸæˆ–é”™è¯¯
             break;
         }
 
-        // ¼ÇÂ¼µ±Ç°PTS£¨ÓÃÓÚ½ø¶ÈÏÔÊ¾£©
+        // è®°å½•å½“å‰PTSï¼ˆç”¨äºè¿›åº¦æ˜¾ç¤ºï¼‰
         {
             std::lock_guard<std::mutex> lock(ctrl.mutex);
             if (pkt->stream_index == video_idx) {
@@ -2213,14 +2286,14 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
         }
 
         if (pkt->stream_index == video_idx) {
-            // ½âÂëÊÓÆµÖ¡
+            // è§£ç è§†é¢‘å¸§
             avcodec_send_packet(video_sc.dec_ctx, pkt);
             while (avcodec_receive_frame(video_sc.dec_ctx, frame) == 0) {
                 if (ctx->exit_decode)
                 {
                     break;
                 }
-                // ×ª»»Ö¡¸ñÊ½
+                // è½¬æ¢å¸§æ ¼å¼
                 AVFrame* enc_frame = av_frame_alloc();
                 enc_frame->format = video_sc.enc_ctx->pix_fmt;
                 enc_frame->width = video_sc.enc_ctx->width;
@@ -2229,7 +2302,7 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
                 sws_scale(video_sc.sws_ctx, frame->data, frame->linesize, 0,
                     frame->height, enc_frame->data, enc_frame->linesize);
 
-                // ±àÂë²¢·¢ËÍ
+                // ç¼–ç å¹¶å‘é€
                 avcodec_send_frame(video_sc.enc_ctx, enc_frame);
                 AVPacket* enc_pkt = av_packet_alloc();
                 while (avcodec_receive_packet(video_sc.enc_ctx, enc_pkt) == 0) {
@@ -2238,7 +2311,7 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
                         break;
                     }
 
-                    // »ùÓÚÏµÍ³Ê±ÖÓÉú³ÉPTS
+                    // åŸºäºç³»ç»Ÿæ—¶é’Ÿç”ŸæˆPTS
                     static auto start_time = std::chrono::steady_clock::now();
                     auto now = std::chrono::steady_clock::now();
                     int64_t elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
@@ -2250,7 +2323,7 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
                         TS_TIME_BASE);
                     enc_pkt->dts = enc_pkt->pts;
 
-                    // Ç¿ÖÆµİÔö±£»¤
+                    // å¼ºåˆ¶é€’å¢ä¿æŠ¤
                     static int64_t last_pts = AV_NOPTS_VALUE;
                     if (last_pts != AV_NOPTS_VALUE) {
                         if (enc_pkt->pts <= last_pts) {
@@ -2263,12 +2336,12 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
                         last_pts = enc_pkt->pts;
                     }
 
-                    // È·±£DTS <= PTS
+                    // ç¡®ä¿DTS <= PTS
                     if (enc_pkt->dts > enc_pkt->pts) {
                         enc_pkt->dts = enc_pkt->pts;
                     }
 
-                    // Ö±½ÓÊ¹ÓÃÍ³Ò»Ê±¼ä»ù£¬ÎŞĞèrescale
+                    // ç›´æ¥ä½¿ç”¨ç»Ÿä¸€æ—¶é—´åŸºï¼Œæ— éœ€rescale
                     enc_pkt->stream_index = 0;
                     av_interleaved_write_frame(output_ctx, enc_pkt);
                     av_packet_unref(enc_pkt);
@@ -2292,7 +2365,7 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
                 }
                 AVFrame* resampled_frame = av_frame_alloc();
 
-                // Ê¹ÓÃĞÂAPIÉèÖÃÒôÆµÖ¡²ÎÊı
+                // ä½¿ç”¨æ–°APIè®¾ç½®éŸ³é¢‘å¸§å‚æ•°
                 resampled_frame->sample_rate = audio_sc.enc_ctx->sample_rate;
                 av_channel_layout_copy(&resampled_frame->ch_layout, &audio_sc.enc_ctx->ch_layout);
                 resampled_frame->format = audio_sc.enc_ctx->sample_fmt;
@@ -2300,11 +2373,11 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
 
                 av_frame_get_buffer(resampled_frame, 0);
 
-                // Ö´ĞĞÖØ²ÉÑù
+                // æ‰§è¡Œé‡é‡‡æ ·
                 swr_convert_frame(audio_sc.swr_ctx, resampled_frame, frame);
 
-                // ±àÂë²¢·¢ËÍ
-                // ¼ÆËãÒôÆµPTS
+                // ç¼–ç å¹¶å‘é€
+                // è®¡ç®—éŸ³é¢‘PTS
                 static int64_t next_audio_pts = 0;
                 resampled_frame->pts = next_audio_pts;
                 next_audio_pts += resampled_frame->nb_samples;
@@ -2316,10 +2389,10 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
                     {
                         break;
                     }
-                    // ÒôÆµ´¦Àí²¿·ÖĞŞ¸Ä
+                    // éŸ³é¢‘å¤„ç†éƒ¨åˆ†ä¿®æ”¹
                     static int64_t audio_samples_sent = 0;
 
-                    // ÔÚ±àÂëÑ­»·ÄÚ£º
+                    // åœ¨ç¼–ç å¾ªç¯å†…ï¼š
                     enc_pkt->pts = av_rescale_q(audio_samples_sent,
                         {
                         1, audio_sc.enc_ctx->sample_rate
@@ -2327,10 +2400,10 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
                         TS_TIME_BASE);
                     audio_samples_sent += resampled_frame->nb_samples;
 
-                    // Ç¿ÖÆDTSÍ¬²½
+                    // å¼ºåˆ¶DTSåŒæ­¥
                     enc_pkt->dts = enc_pkt->pts;
 
-                    // ½»²æ¼ì²éÊÓÆµÊ±¼ä´Á
+                    // äº¤å‰æ£€æŸ¥è§†é¢‘æ—¶é—´æˆ³
                     static int64_t last_video_pts = 0;
                     if (last_video_pts > 0 && enc_pkt->pts < last_video_pts) {
                         audio_samples_sent = av_rescale_q(last_video_pts,
@@ -2342,12 +2415,12 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
                         enc_pkt->dts = enc_pkt->pts;
                     }
 
-                    av_packet_rescale_ts(enc_pkt, TS_TIME_BASE, TS_TIME_BASE); // ÏÔÊ½Í³Ò»Ê±¼ä»ù
+                    av_packet_rescale_ts(enc_pkt, TS_TIME_BASE, TS_TIME_BASE); // æ˜¾å¼ç»Ÿä¸€æ—¶é—´åŸº
 
                     enc_pkt->stream_index = 1;
                     av_interleaved_write_frame(output_ctx, enc_pkt);
 
-                    // ÔÚÒôÆµ°ü´¦Àí²¿·ÖÌí¼Ó£º
+                    // åœ¨éŸ³é¢‘åŒ…å¤„ç†éƒ¨åˆ†æ·»åŠ ï¼š
                     {
                         std::lock_guard<std::mutex> lock(ctrl.mutex);
                         if (ctrl.current_pts == AV_NOPTS_VALUE) {
@@ -2370,7 +2443,7 @@ void decode_thread(AVFormatContext* fmt_ctx, EncodingContext* ctx) {
         Sleep(10);
     }
 
-    // ÊÕÎ²¹¤×÷
+    // æ”¶å°¾å·¥ä½œ
     av_write_trailer(output_ctx);
     
     avformat_free_context(output_ctx);
@@ -2405,7 +2478,7 @@ void request_seek(PlayerControl& ctrl, double target_seconds) {
     ctrl.cv.notify_all();
 }
 
-// ×´Ì¬²éÑ¯½Ó¿Ú
+// çŠ¶æ€æŸ¥è¯¢æ¥å£
 double get_current_time(PlayerControl& ctrl) {
     std::lock_guard<std::mutex> lock(ctrl.mutex);
     return ctrl.current_pts * av_q2d(AV_TIME_BASE_Q);
@@ -2416,7 +2489,7 @@ static int write_packet(void* opaque, uint8_t* buf, int buf_size) {
     std::ofstream& outFile = *(std::ofstream*)opaque;
     outFile.write(reinterpret_cast<const char*>(buf), buf_size);
     outFile.flush();
-    //³ö´í·µ»Ø -1
+    //å‡ºé”™è¿”å› -1
     return buf_size;
 }
 
@@ -2424,42 +2497,42 @@ static int write_packet(void* opaque, uint8_t* buf, int buf_size) {
 
 int test()
 {
-#define OUTPUT_URL "rtmp://192.168.2.80:1935/tvstream"  // Ä¿±ê IP µØÖ·ºÍ¶Ë¿Ú
-    std::string _input_filename = convertToUTF8("G:\\Ñ¸À×ÏÂÔØ\\Ä§¹íÌìÊ¹.Devil.Anger.1995.DVDRip.¹úÔÁË«Óï.ÖĞ×Ö.mkv");
+#define OUTPUT_URL "rtmp://192.168.2.80:1935/tvstream"  // ç›®æ ‡ IP åœ°å€å’Œç«¯å£
+    std::string _input_filename = convertToUTF8("G:\\è¿…é›·ä¸‹è½½\\é­”é¬¼å¤©ä½¿.Devil.Anger.1995.DVDRip.å›½ç²¤åŒè¯­.ä¸­å­—.mkv");
 
     const char* input_filename = _input_filename.c_str();
     
     std::ofstream outFile("d:\\test.ts", std::ios::binary);
 
-    // ´ò¿ªÊäÈëÎÄ¼ş
+    // æ‰“å¼€è¾“å…¥æ–‡ä»¶
     AVFormatContext* input_ctx = NULL;
     if (avformat_open_input(&input_ctx, input_filename, NULL, NULL) < 0) {
-        fprintf(stderr, "ÎŞ·¨´ò¿ªÊäÈëÎÄ¼ş\n");
+        fprintf(stderr, "æ— æ³•æ‰“å¼€è¾“å…¥æ–‡ä»¶\n");
         return -1;
     }
     if (avformat_find_stream_info(input_ctx, NULL) < 0) {
-        fprintf(stderr, "ÎŞ·¨»ñÈ¡Á÷ĞÅÏ¢\n");
+        fprintf(stderr, "æ— æ³•è·å–æµä¿¡æ¯\n");
         return -1;
     }
 
-    // ²éÕÒÊÓÆµºÍÒôÆµÁ÷
+    // æŸ¥æ‰¾è§†é¢‘å’ŒéŸ³é¢‘æµ
     int video_idx = av_find_best_stream(input_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
     int audio_idx = av_find_best_stream(input_ctx, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
 
     if (video_idx < 0 && audio_idx < 0) {
-        fprintf(stderr, "Î´ÕÒµ½ÒôÊÓÆµÁ÷\n");
+        fprintf(stderr, "æœªæ‰¾åˆ°éŸ³è§†é¢‘æµ\n");
         return -1;
     }
 
     StreamContext video_sc = { 0 }, audio_sc = { 0 };
 
-    // ×¼±¸Êä³öÉÏÏÂÎÄ
+    // å‡†å¤‡è¾“å‡ºä¸Šä¸‹æ–‡
     AVFormatContext* output_ctx = NULL;
     avformat_alloc_output_context2(&output_ctx, NULL, "mpegts", NULL);
     AVIOContext* avio_ctx = avio_alloc_context((unsigned char*)av_malloc(4096), 4096, 1, &outFile, NULL, write_packet, NULL);
     output_ctx->pb = avio_ctx;
 
-    // ÅäÖÃÊÓÆµÁ÷
+    // é…ç½®è§†é¢‘æµ
     if (video_idx >= 0) {
         AVStream* in_stream = input_ctx->streams[video_idx];
         const AVCodec* dec = avcodec_find_decoder(in_stream->codecpar->codec_id);
@@ -2489,7 +2562,7 @@ int test()
 
     }
 
-    // ÅäÖÃÒôÆµÁ÷£¨ÀàËÆÊÓÆµ£¬Ğè´¦ÀíÖØ²ÉÑù£©
+    // é…ç½®éŸ³é¢‘æµï¼ˆç±»ä¼¼è§†é¢‘ï¼Œéœ€å¤„ç†é‡é‡‡æ ·ï¼‰
     if (audio_idx >= 0) {
         AVStream* in_stream = input_ctx->streams[audio_idx];
         const AVCodec* dec = avcodec_find_decoder(in_stream->codecpar->codec_id);
@@ -2500,20 +2573,20 @@ int test()
         const AVCodec* enc = avcodec_find_encoder(AV_CODEC_ID_AAC);
         audio_sc.enc_ctx = avcodec_alloc_context3(enc);
 
-        // ÉèÖÃÒôÆµ±àÂë²ÎÊı£¨ĞÂAPI·½Ê½£©
+        // è®¾ç½®éŸ³é¢‘ç¼–ç å‚æ•°ï¼ˆæ–°APIæ–¹å¼ï¼‰
         audio_sc.enc_ctx->sample_rate = 48000;
-        audio_sc.enc_ctx->sample_fmt = enc->sample_fmts[0]; // Ñ¡ÔñµÚÒ»¸öÖ§³ÖµÄ¸ñÊ½
+        audio_sc.enc_ctx->sample_fmt = enc->sample_fmts[0]; // é€‰æ‹©ç¬¬ä¸€ä¸ªæ”¯æŒçš„æ ¼å¼
 
-        // Ê¹ÓÃĞÂµÄÍ¨µÀ²¼¾ÖÏµÍ³
+        // ä½¿ç”¨æ–°çš„é€šé“å¸ƒå±€ç³»ç»Ÿ
         AVChannelLayout stereo_layout;
-        av_channel_layout_default(&stereo_layout, 2); // Á¢ÌåÉù
+        av_channel_layout_default(&stereo_layout, 2); // ç«‹ä½“å£°
         av_channel_layout_copy(&audio_sc.enc_ctx->ch_layout, &stereo_layout);
 
         audio_sc.enc_ctx->bit_rate = 128000;
         audio_sc.enc_ctx->time_base = { 1, audio_sc.enc_ctx->sample_rate };
 
         if (avcodec_open2(audio_sc.enc_ctx, enc, NULL) < 0) {
-            fprintf(stderr, "ÎŞ·¨´ò¿ªÒôÆµ±àÂëÆ÷\n");
+            fprintf(stderr, "æ— æ³•æ‰“å¼€éŸ³é¢‘ç¼–ç å™¨\n");
             return -1;
         }
 
@@ -2521,20 +2594,20 @@ int test()
         avcodec_parameters_from_context(out_stream->codecpar, audio_sc.enc_ctx);
         out_stream->time_base = audio_sc.enc_ctx->time_base;
 
-        // ³õÊ¼»¯ÒôÆµÖØ²ÉÑùÆ÷£¨ĞÂAPI£©
+        // åˆå§‹åŒ–éŸ³é¢‘é‡é‡‡æ ·å™¨ï¼ˆæ–°APIï¼‰
         audio_sc.swr_ctx = swr_alloc();
         swr_alloc_set_opts2(&audio_sc.swr_ctx,
-            &audio_sc.enc_ctx->ch_layout, // Êä³ö²¼¾Ö
+            &audio_sc.enc_ctx->ch_layout, // è¾“å‡ºå¸ƒå±€
             audio_sc.enc_ctx->sample_fmt,
             audio_sc.enc_ctx->sample_rate,
-            &audio_sc.dec_ctx->ch_layout, // ÊäÈë²¼¾Ö
+            &audio_sc.dec_ctx->ch_layout, // è¾“å…¥å¸ƒå±€
             audio_sc.dec_ctx->sample_fmt,
             audio_sc.dec_ctx->sample_rate,
             0, NULL);
         swr_init(audio_sc.swr_ctx);
     }
 
-    // Ğ´ÈëÊä³öÍ·²¿
+    // å†™å…¥è¾“å‡ºå¤´éƒ¨
     avformat_write_header(output_ctx, NULL);
 
     AVPacket* pkt = av_packet_alloc();
@@ -2544,10 +2617,10 @@ int test()
 
     while (av_read_frame(input_ctx, pkt) >= 0 && i < 10000) {
         if (pkt->stream_index == video_idx) {
-            // ½âÂëÊÓÆµÖ¡
+            // è§£ç è§†é¢‘å¸§
             avcodec_send_packet(video_sc.dec_ctx, pkt);
             while (avcodec_receive_frame(video_sc.dec_ctx, frame) == 0) {
-                // ×ª»»Ö¡¸ñÊ½
+                // è½¬æ¢å¸§æ ¼å¼
                 AVFrame* enc_frame = av_frame_alloc();
                 enc_frame->format = video_sc.enc_ctx->pix_fmt;
                 enc_frame->width = video_sc.enc_ctx->width;
@@ -2556,17 +2629,17 @@ int test()
                 sws_scale(video_sc.sws_ctx, frame->data, frame->linesize, 0,
                     frame->height, enc_frame->data, enc_frame->linesize);
 
-                // ±àÂë²¢·¢ËÍ
+                // ç¼–ç å¹¶å‘é€
                 avcodec_send_frame(video_sc.enc_ctx, enc_frame);
                 AVPacket *enc_pkt = av_packet_alloc();
                 while (avcodec_receive_packet(video_sc.enc_ctx, enc_pkt) == 0) {
-                    // ¼Ì³ĞÔ­Ê¼Ö¡µÄPTS
+                    // ç»§æ‰¿åŸå§‹å¸§çš„PTS
                     enc_pkt->pts = av_rescale_q(frame->pts,
                         video_sc.dec_ctx->time_base,
                         video_sc.enc_ctx->time_base);
                     enc_pkt->dts = enc_pkt->pts;
 
-                    // È·±£Ê±¼ä´ÁµİÔö
+                    // ç¡®ä¿æ—¶é—´æˆ³é€’å¢
                     static int64_t last_video_pts = AV_NOPTS_VALUE;
                     if (last_video_pts != AV_NOPTS_VALUE && enc_pkt->pts <= last_video_pts) {
                         enc_pkt->pts = last_video_pts + 1;
@@ -2590,7 +2663,7 @@ int test()
             while (avcodec_receive_frame(audio_sc.dec_ctx, frame) == 0) {
                 AVFrame* resampled_frame = av_frame_alloc();
 
-                // Ê¹ÓÃĞÂAPIÉèÖÃÒôÆµÖ¡²ÎÊı
+                // ä½¿ç”¨æ–°APIè®¾ç½®éŸ³é¢‘å¸§å‚æ•°
                 resampled_frame->sample_rate = audio_sc.enc_ctx->sample_rate;
                 av_channel_layout_copy(&resampled_frame->ch_layout, &audio_sc.enc_ctx->ch_layout);
                 resampled_frame->format = audio_sc.enc_ctx->sample_fmt;
@@ -2598,11 +2671,11 @@ int test()
 
                 av_frame_get_buffer(resampled_frame, 0);
 
-                // Ö´ĞĞÖØ²ÉÑù
+                // æ‰§è¡Œé‡é‡‡æ ·
                 swr_convert_frame(audio_sc.swr_ctx, resampled_frame, frame);
 
-                // ±àÂë²¢·¢ËÍ
-                // ¼ÆËãÒôÆµPTS
+                // ç¼–ç å¹¶å‘é€
+                // è®¡ç®—éŸ³é¢‘PTS
                 static int64_t next_audio_pts = 0;
                 resampled_frame->pts = next_audio_pts;
                 next_audio_pts += resampled_frame->nb_samples;
@@ -2610,13 +2683,13 @@ int test()
                 avcodec_send_frame(audio_sc.enc_ctx, resampled_frame);
                 AVPacket* enc_pkt = av_packet_alloc();
                 while (avcodec_receive_packet(audio_sc.enc_ctx, enc_pkt) == 0) {
-                    // ×ª»»Ê±¼ä»ù×¼
+                    // è½¬æ¢æ—¶é—´åŸºå‡†
                     enc_pkt->pts = av_rescale_q(enc_pkt->pts,
                         audio_sc.enc_ctx->time_base,
                         output_ctx->streams[1]->time_base);
                     enc_pkt->dts = enc_pkt->pts;
 
-                    // È·±£ÒôÆµPTS²»ÂäºóÊÓÆµ
+                    // ç¡®ä¿éŸ³é¢‘PTSä¸è½åè§†é¢‘
                     static int64_t last_audio_pts = AV_NOPTS_VALUE;
                     if (last_audio_pts != AV_NOPTS_VALUE &&
                         enc_pkt->pts <= last_audio_pts) {
@@ -2637,7 +2710,7 @@ int test()
         i++;
     }
 
-    // ÊÕÎ²¹¤×÷
+    // æ”¶å°¾å·¥ä½œ
     av_write_trailer(output_ctx);
     avformat_close_input(&input_ctx);
     avio_context_free(&output_ctx->pb);

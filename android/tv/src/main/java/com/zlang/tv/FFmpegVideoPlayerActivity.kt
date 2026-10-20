@@ -950,29 +950,41 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
             return
         }
 
-        try {
-            // 获取当前视频帧
-            val textureView = playerView.videoSurfaceView as? TextureView
-            if (textureView == null || !textureView.isAvailable) {
-                Log.e("Screenshot", "TextureView 不可用")
-                // 重新安排下一次截图
-                scheduleNextScreenshot()
-                return
-            }
+        val textureView = playerView.videoSurfaceView as? TextureView
+        if (textureView == null || !textureView.isAvailable) {
+            Log.e("Screenshot", "TextureView 不可用")
+            // 重新安排下一次截图
+            scheduleNextScreenshot()
+            return
+        }
 
-            val bitmap = textureView.bitmap
-            if (bitmap == null) {
-                Log.e("Screenshot", "无法获取视频帧")
-                // 重新安排下一次截图
-                scheduleNextScreenshot()
-                return
-            }
+        // 暂停或未就绪时跳过，避免后台取帧线程因等待新帧而长时间阻塞
+        if (player?.playbackState != Player.STATE_READY || player?.isPlaying != true) {
+            Log.d("Screenshot", "播放器未在播放中，跳过本次截图")
+            scheduleNextScreenshot()
+            return
+        }
 
-            // 将耗时的保存操作放到后台线程中执行
-            Thread {
-                var savedSuccessfully = false
-                try {
-                    // 创建截图保存目录
+        // 取帧和保存全部放到后台线程执行：
+        // textureView.bitmap 会同步等待视频下一帧并做GPU回读，在主线程调用会造成明显卡顿，
+        // 移到后台线程后主线程完全不阻塞
+        Thread {
+            var savedSuccessfully = false
+            var bitmap: Bitmap? = null
+            try {
+                // 获取当前视频帧（后台线程执行，不阻塞主线程）
+                if (!textureView.isAvailable) {
+                    Log.e("Screenshot", "TextureView 不可用")
+                    return@Thread
+                }
+
+                bitmap = textureView.bitmap
+                if (bitmap == null) {
+                    Log.e("Screenshot", "无法获取视频帧")
+                    return@Thread
+                }
+
+                // 创建截图保存目录
                     val screenshotDir = File(getExternalFilesDir(null), "screenshots")
                     if (!screenshotDir.exists()) {
                         screenshotDir.mkdirs()
@@ -1030,7 +1042,7 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
                     Log.e("Screenshot", "保存截图过程出错", e)
                 } finally {
                     // 在后台线程安全地回收位图
-                    bitmap.recycle()
+                    bitmap?.recycle()
 
                     // 如果保存成功，在主线程调度下一次截图
                     if (savedSuccessfully) {
@@ -1044,12 +1056,7 @@ class FFmpegVideoPlayerActivity : ComponentActivity() {
                         }, 10000) // 10秒后重试
                     }
                 }
-            }.start()
-        } catch (e: Exception) {
-            Log.e("Screenshot", "截图过程出错", e)
-            // 出错后也要调度下一次截图
-            scheduleNextScreenshot()
-        }
+        }.start()
     }
 
     private fun startSaveRecordTimer() {

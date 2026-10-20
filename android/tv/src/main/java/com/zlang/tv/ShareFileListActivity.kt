@@ -185,6 +185,7 @@ class ShareFileListActivity : ComponentActivity() {
         currentPath = fixSambaUrl("smb://${smbServer?.getString("user") ?: ""}:${smbServer?.getString("password")}@${smbServerIp}/${shareName}/")
 
         PathRecordsManager.init(this)
+        PageTimeDisplay.attach(this)
 
         // 初始化视图
         initViews()

@@ -69,6 +69,8 @@ class RecordListActivity : ComponentActivity() {
         // 初始化视图
         initViews()
         
+        PageTimeDisplay.attach(this)
+
         // 加载播放记录
         loadRecords()
     }

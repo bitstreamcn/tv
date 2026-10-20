@@ -135,6 +135,8 @@ class PhotoViewerActivity : ComponentActivity() {
             return
         }
 
+        PageTimeDisplay.attach(this)
+
         // 初始化UI组件
         initializeViews()
 

@@ -88,6 +88,7 @@ class ShareListActivity : ComponentActivity() {
         pathkey = "smb://${smbServerIp}/"
 
         PathRecordsManager.init(this)
+        PageTimeDisplay.attach(this)
 
         // 初始化视图
         initViews()

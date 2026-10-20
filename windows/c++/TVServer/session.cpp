@@ -374,12 +374,19 @@ void Session::control_fun()
             {
                 continue;
             }
+            std::cout << "recv: " << UTF8ToGB2312(json_str) << std::endl;
             //log("收到数据:" + json_str);
 
             auto cmd = nlohmann::json::parse(json_str);
 
             nlohmann::json response;
             response["status"] = "fail";
+            std::string action = "";
+            if (cmd.contains("action"))
+            {
+                action = cmd["action"];
+            }
+            std::cout << "cmd: " << action << std::endl;
 
             int32_t reqid = 0;
             if (cmd.contains("reqid"))
@@ -395,7 +402,7 @@ void Session::control_fun()
                 continue;
             }
 
-            if (cmd["action"] == "pause") {
+            if (action == "pause") {
                 int buffer_time = cmd["buffer_time"];
                 if (buffer_time > 20000) {
                     if (!stream_paused)
@@ -405,7 +412,7 @@ void Session::control_fun()
                     stream_paused = true;
                 }
             }
-            else if (cmd["action"] == "resume") {
+            else if (action == "resume") {
                 int buffer_time = cmd["buffer_time"];
                 if (buffer_time < 10000) {
                     if (stream_paused)
@@ -416,7 +423,7 @@ void Session::control_fun()
                     cv.notify_all();
                 }
             }
-            else if (cmd["action"] == "stop_stream") {
+            else if (action == "stop_stream") {
                 log("stop_stream");
                 memset(&run_status, 0, sizeof(run_status));
 
@@ -426,7 +433,7 @@ void Session::control_fun()
                 }
                 clear_queue();
             }
-            else if (cmd["action"] == "stream") {
+            else if (action == "stream") {
                 std::string path = cmd["path"]; //返回的是UTF-8格式
                 double pts = cmd["start_time"];
                 log("stream：" + UTF8ToGB2312(path + std::string(" - ") + std::to_string(pts)));
@@ -446,14 +453,14 @@ void Session::control_fun()
                 response["message"] = "";
                 response["duration"] = media->Duration();
             }
-            else if (cmd["action"] == "list") {
+            else if (action == "list") {
                 std::string currentPath = cmd["path"];
                 response = getDirectoryContent(currentPath);
                 response["reqid"] = reqid;
                 std::string json_str = response.dump();
                 //log(json_str);
             }
-            else if (cmd["action"] == "seek") {
+            else if (action == "seek") {
                 memset(&run_status, 0, sizeof(run_status));
 
                 double  pts = cmd["pts"];
@@ -473,7 +480,7 @@ void Session::control_fun()
                 response["message"] = "";
                 response["duration"] = media->Duration();
             }
-            else if (cmd["action"] == "enc" || cmd["action"] == "encode") {
+            else if (action == "enc" || action == "encode") {
                 std::string path = cmd["path"]; //返回的是UTF-8格式
                 bool ists = isTsFile(path);
                 if (ists)
@@ -535,7 +542,7 @@ void Session::control_fun()
                     response["status"] = "success";
                 }
             }
-            else if (cmd["action"] == "aac5.1") {
+            else if (action == "aac5.1") {
                 std::string path = cmd["path"]; //返回的是UTF-8格式
                 bool ists = isTsFile(path);
                 if (ists)
@@ -577,7 +584,7 @@ void Session::control_fun()
                     response["status"] = "success";
                 }
             }
-            else if (cmd["action"] == "bdmv_enc") {
+            else if (action == "bdmv_enc") {
                 std::string path = cmd["path"]; //返回的是UTF-8格式
 
                 std::string pathgb2312 = UTF8ToGB2312(path);
@@ -611,7 +618,7 @@ void Session::control_fun()
 
                 response["status"] = "success";
             }
-            else if (cmd["action"] == "smblist") {
+            else if (action == "smblist") {
             /*
                 nlohmann::json list = nlohmann::json::array();
                 nlohmann::json server;
@@ -638,7 +645,7 @@ void Session::control_fun()
                 response["message"] = "";
                 response["items"] = data;
             }
-            else if (cmd["action"] == "download") {
+            else if (action == "download") {
                 std::string path = cmd["path"]; //返回的是UTF-8格式
                 std::string pathgb2312 = UTF8ToGB2312(path);
                 if (send_file(ctrl_sock, pathgb2312))
@@ -646,7 +653,7 @@ void Session::control_fun()
                     continue;
                 }
             }
-            else if (cmd["action"] == "makesrt") {
+            else if (action == "makesrt") {
                 std::string path = cmd["path"]; //返回的是UTF-8格式
                 fs::path filePath = std::filesystem::u8path(path);
                 // 1. 提取父目录和文件名主干 
@@ -655,18 +662,36 @@ void Session::control_fun()
 
                 // 2. 构建新路径
                 fs::path srtfile = parentDir / (stem + ".srt");
-                if (!fs::exists(srtfile))
+                fs::path supfile = parentDir / (stem + ".sup");
+                if (fs::exists(srtfile))
+                {
+                    fs::remove(srtfile);
+                }
+                if (fs::exists(supfile))
+                {
+                    fs::remove(supfile);
+                }
+                //if (!fs::exists(srtfile))
                 {
                     std::string pathgb2312 = UTF8ToGB2312(filePath.u8string());
                     std::string outputPath = UTF8ToGB2312(srtfile.u8string());
+                    std::string outputSupPath = UTF8ToGB2312(supfile.u8string());
 
                     // 构建 ffmpeg 命令
+                    /*
                     std::string ffmpegCommand = "cmd /v:on /c \"(for /f \"tokens=1 delims=:\" %i in ('ffprobe -v error -select_streams s -show_entries stream^=index:stream_tags^=language -of csv^=p^=0 \"" + pathgb2312
                         + "\"  ^| findstr /i /n \"chi zho zh\"') do (set /a \"na=%i-1\" >nul & ffmpeg -i \"" + pathgb2312
                         + "\"  -map \"0:s:!na!\" -c:s srt -y \"" + outputPath + "\"  & exit /b)) || (for /f \"tokens=1 delims=:\" %i in ('ffprobe -v error -select_streams s -show_entries stream^=index:stream_tags^=language -of csv^=p^=0 \"" + pathgb2312
                         + "\"  ^| findstr /i /n \"en eng\"') do (set /a \"nc=%i-1\" >nul & ffmpeg -i \"" + pathgb2312
                         + "\"  -map \"0:s:!nc!\" -c:s srt -y \"" + outputPath + "\"  & exit /b)) || ffmpeg -y -i \"" + pathgb2312
                         + "\"  -map 0:s:0 -c:s srt \"" + outputPath + "\"\"";
+                    */
+                    std::string ffmpegCommand = "cmd /v:on /c \"(for /f \"tokens=1 delims=:\" %i in ('ffprobe -v error -select_streams s -show_entries stream^=index:stream_tags^=language -of csv^=p^=0 \"" + pathgb2312
+                        + "\"  ^| findstr /i /n \"chi zho zh\"') do (set /a \"na=%i-1\" >nul & ffmpeg -i \"" + pathgb2312
+                        + "\"  -map \"0:s:!na!\" -c:s copy -y \"" + outputSupPath + "\"  & exit /b)) || (for /f \"tokens=1 delims=:\" %i in ('ffprobe -v error -select_streams s -show_entries stream^=index:stream_tags^=language -of csv^=p^=0 \"" + pathgb2312
+                        + "\"  ^| findstr /i /n \"en eng\") do (set /a \"nc=%i-1\" >nul & ffmpeg -i \"" + pathgb2312
+                        + "\"  -map \"0:s:!nc!\" -c:s copy -y \"" + outputSupPath + "\"  & exit /b)) || ffmpeg -y -i \"" + pathgb2312
+                        + "\"  -map 0:s:0 -c:s copy \"" + outputSupPath + "\"\"";
 
                     int idx = Media::GetSubIndex(path);
                     if (idx > -1)
@@ -696,12 +721,17 @@ void Session::control_fun()
 
                     response["status"] = "success";
                 }
+                /*
                 else
                 {
                     response["status"] = "fail";
                     response["message"] = "srt exists";
                 }
+                */
             }
+            std::string rs = response.dump();
+            std::cout << "response: " << UTF8ToGB2312(rs) << std::endl;
+
             // 发送响应
             send_tlv_packet(ctrl_sock, response);
         }
